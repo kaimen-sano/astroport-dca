@@ -1,0 +1,25 @@
+[workspace]
+members = [
+    "packages/*",
+    "contracts/dca",
+    "contracts/factory",
+    "contracts/pair",
+    "contracts/pair_stable",
+    "contracts/pair_stable_bluna",
+    "contracts/router",
+    "contracts/token",
+    "contracts/whitelist",
+    "contracts/tokenomics/*",
+    "contracts/periphery/*"
+]
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+overflow-checks = true
