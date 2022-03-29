@@ -132,7 +132,8 @@ pub fn perform_dca_purchase(
             }
 
             // subtract dca_amount from order and update last_purchase time
-            order.initial_asset.amount.checked_sub(order.dca_amount)?;
+            order.initial_asset.amount =
+                order.initial_asset.amount.checked_sub(order.dca_amount)?;
             order.last_purchase = env.block.time.seconds();
 
             // add funds if native token
