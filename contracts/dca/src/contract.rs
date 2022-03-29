@@ -13,8 +13,6 @@ use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
-use astroport::pair::MAX_ALLOWED_SLIPPAGE;
-
 use astroport::dca::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cw2::set_contract_version;
 
@@ -42,13 +40,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    // validate that contract slippage does not exceed MAX_ALLOWED_SLIPPAGE
-    let max_allowed_spread = Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?;
-    let spread = Decimal::from_str(&msg.max_spread)?;
-
-    if spread.gt(&max_allowed_spread) {
-        return Err(ContractError::AllowedSpreadAssertion {});
-    }
+    // get max spread in decimal form
+    let max_spread = Decimal::from_str(&msg.max_spread)?;
 
     // validate that factory_addr and router_addr is an address
     let factory_addr = addr_validate_to_lower(deps.api, &msg.factory_addr)?;
@@ -58,9 +51,9 @@ pub fn instantiate(
 
     let config = Config {
         max_hops: msg.max_hops,
-        max_spread: msg.max_spread,
         per_hop_fee: msg.per_hop_fee,
         whitelisted_tokens: msg.whitelisted_tokens,
+        max_spread,
         factory_addr,
         router_addr,
     };

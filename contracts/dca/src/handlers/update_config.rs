@@ -1,5 +1,5 @@
 use astroport::{asset::AssetInfo, querier::query_factory_config};
-use cosmwasm_std::{attr, DepsMut, MessageInfo, Response, StdError, Uint128};
+use cosmwasm_std::{attr, Decimal, DepsMut, MessageInfo, Response, StdError, Uint128};
 
 use crate::{error::ContractError, state::CONFIG};
 
@@ -22,7 +22,7 @@ use crate::{error::ContractError, state::CONFIG};
 /// can be used in a swap for dca purchases. If excluded, the current config value will not be
 /// changed.
 ///
-/// * **max_spread** is an optional [`String`] which represents the new maximum spread for each DCA
+/// * **max_spread** is an optional [`Decimal`] which represents the new maximum spread for each DCA
 /// purchase. If excluded, the current config value will not be changed.
 pub fn update_config(
     deps: DepsMut,
@@ -30,7 +30,7 @@ pub fn update_config(
     max_hops: Option<u32>,
     per_hop_fee: Option<Uint128>,
     whitelisted_tokens: Option<Vec<AssetInfo>>,
-    max_spread: Option<String>,
+    max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, config.factory_addr)?;

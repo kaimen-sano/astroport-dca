@@ -1,13 +1,11 @@
-use std::str::FromStr;
-
 use astroport::{
     asset::{addr_validate_to_lower, AssetInfo, UUSD_DENOM},
     dca::DcaInfo,
     router::{ExecuteMsg as RouterExecuteMsg, SwapOperation},
 };
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
-    StdResult, Uint128, WasmMsg,
+    attr, to_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdResult,
+    Uint128, WasmMsg,
 };
 
 use crate::{
@@ -162,9 +160,8 @@ pub fn perform_dca_purchase(
         },
     )?;
 
-    let max_spread = Some(Decimal::from_str(
-        &user_config.max_spread.unwrap_or(contract_config.max_spread),
-    )?);
+    // retrieve max_spread from user config, or default to contract set max_spread
+    let max_spread = user_config.max_spread.unwrap_or(contract_config.max_spread);
 
     let router_swap_msg: CosmosMsg = WasmMsg::Execute {
         contract_addr: contract_config.router_addr.to_string(),
@@ -172,7 +169,7 @@ pub fn perform_dca_purchase(
             operations: hops,
             minimum_receive: None,
             to: Some(user_address),
-            max_spread,
+            max_spread: Some(max_spread),
         })?,
         funds,
     }

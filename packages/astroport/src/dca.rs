@@ -6,7 +6,7 @@ use crate::{
     router::SwapOperation,
 };
 
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Decimal, Uint128};
 
 /// Describes information about a dca strategy
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -54,7 +54,7 @@ pub enum ExecuteMsg {
         /// The new whitelisted tokens that can be used in a DCA purchase route
         whitelisted_tokens: Option<Vec<AssetInfo>>,
         /// The new maximum spread for DCA purchases
-        max_spread: Option<String>,
+        max_spread: Option<Decimal>,
     },
     /// Update the configuration for a user
     UpdateUserConfig {
@@ -63,7 +63,7 @@ pub enum ExecuteMsg {
         /// The maximum spread per token when DCAing
         ///
         /// Must be between 0 and `MAX_ALLOWED_SLIPPAGE`
-        max_spread: Option<String>,
+        max_spread: Option<Decimal>,
     },
     /// Creates a new DCA strategy where `dca_amount` of token `initial_asset` will purchase
     /// `target_asset` every `interval`

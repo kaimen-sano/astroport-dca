@@ -1,4 +1,4 @@
-use cosmwasm_std::{attr, DepsMut, MessageInfo, Response};
+use cosmwasm_std::{attr, Decimal, DepsMut, MessageInfo, Response};
 
 use crate::{
     error::ContractError,
@@ -17,13 +17,13 @@ use crate::{
 /// * **max_hops** is a [`u8`] value wrapped in an [`Option`] which represents the new maximum
 /// amount of hops per swap. If excluded, the user will use the config set by the contract.
 ///
-/// * **max_spread** is a [`String`] value wrapped in an [`Option`] which represents the new maximum
+/// * **max_spread** is a [`Decimal`] value wrapped in an [`Option`] which represents the new maximum
 /// spread for each DCA purchase. If excluded, the user will use the config set by the contract.
 pub fn update_user_config(
     deps: DepsMut,
     info: MessageInfo,
     max_hops: Option<u32>,
-    max_spread: Option<String>,
+    max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     let config = USER_CONFIG
         .may_load(deps.storage, &info.sender)?
