@@ -43,7 +43,7 @@ pub fn create_dca_order(
 
     if orders
         .iter()
-        .any(|order| order.initial_asset == initial_asset)
+        .any(|order| order.initial_asset.info == initial_asset.info)
     {
         return Err(ContractError::AlreadyDeposited {});
     }
