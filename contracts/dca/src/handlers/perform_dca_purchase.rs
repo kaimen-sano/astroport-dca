@@ -152,9 +152,9 @@ pub fn perform_dca_purchase(
         deps.storage,
         &user_address,
         |user_config| -> StdResult<UserConfig> {
-            let user_config = user_config.unwrap_or_default();
+            let mut user_config = user_config.unwrap_or_default();
 
-            user_config.tip_balance.checked_sub(tip_cost)?;
+            user_config.tip_balance = user_config.tip_balance.checked_sub(tip_cost)?;
 
             Ok(user_config)
         },
@@ -186,5 +186,8 @@ pub fn perform_dca_purchase(
 
     Ok(Response::new()
         .add_messages(vec![router_swap_msg, tip_payment])
-        .add_attributes(vec![attr("action", "perform_dca_purchase")]))
+        .add_attributes(vec![
+            attr("action", "perform_dca_purchase"),
+            attr("tip_cost", tip_cost),
+        ]))
 }
