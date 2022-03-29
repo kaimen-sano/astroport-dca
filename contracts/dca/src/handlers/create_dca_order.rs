@@ -2,7 +2,7 @@ use astroport::{
     asset::{Asset, AssetInfo},
     dca::DcaInfo,
 };
-use cosmwasm_std::{attr, DepsMut, Env, MessageInfo, Response, StdResult, Uint128};
+use cosmwasm_std::{attr, DepsMut, Env, MessageInfo, Response, Uint128};
 
 use crate::{error::ContractError, get_token_allowance::get_token_allowance, state::USER_DCA};
 
@@ -37,7 +37,14 @@ pub fn create_dca_order(
     dca_amount: Uint128,
 ) -> Result<Response, ContractError> {
     // check that user has not previously created dca strategy with this initial_asset
-    if USER_DCA.has(deps.storage, &info.sender) {
+    let mut orders = USER_DCA
+        .may_load(deps.storage, &info.sender)?
+        .unwrap_or_default();
+
+    if orders
+        .iter()
+        .any(|order| order.initial_asset == initial_asset)
+    {
         return Err(ContractError::AlreadyDeposited {});
     }
 
@@ -55,23 +62,15 @@ pub fn create_dca_order(
     }
 
     // store dca order
-    USER_DCA.update(
-        deps.storage,
-        &info.sender,
-        |orders| -> StdResult<Vec<DcaInfo>> {
-            let mut orders = orders.unwrap_or_default();
+    orders.push(DcaInfo {
+        initial_asset: initial_asset.clone(),
+        target_asset: target_asset.clone(),
+        interval,
+        last_purchase: 0,
+        dca_amount,
+    });
 
-            orders.push(DcaInfo {
-                initial_asset: initial_asset.clone(),
-                target_asset: target_asset.clone(),
-                interval,
-                last_purchase: 0,
-                dca_amount,
-            });
-
-            Ok(orders)
-        },
-    )?;
+    USER_DCA.save(deps.storage, &info.sender, &orders)?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "create_dca_order"),
