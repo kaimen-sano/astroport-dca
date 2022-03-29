@@ -2,8 +2,8 @@ use std::str::FromStr;
 
 use crate::error::ContractError;
 use crate::handlers::{
-    add_bot_tip, cancel_dca_order, create_dca_order, perform_dca_purchase, update_config,
-    update_user_config, withdraw,
+    add_bot_tip, cancel_dca_order, create_dca_order, modify_dca_order, perform_dca_purchase,
+    update_config, update_user_config, withdraw, ModifyDcaOrderParameters,
 };
 use crate::queries::{get_config, get_user_config, get_user_dca_orders};
 use crate::state::{Config, CONFIG};
@@ -153,6 +153,26 @@ pub fn execute(
             perform_dca_purchase(deps, env, info, user, hops)
         }
         ExecuteMsg::CancelDcaOrder { initial_asset } => cancel_dca_order(deps, info, initial_asset),
+        ExecuteMsg::ModifyDcaOrder {
+            old_initial_asset,
+            new_initial_asset,
+            new_target_asset,
+            new_interval,
+            new_dca_amount,
+            should_reset_purchase_time,
+        } => modify_dca_order(
+            deps,
+            env,
+            info,
+            ModifyDcaOrderParameters {
+                old_initial_asset,
+                new_initial_asset,
+                new_target_asset,
+                new_interval,
+                new_dca_amount,
+                should_reset_purchase_time,
+            },
+        ),
     }
 }
 

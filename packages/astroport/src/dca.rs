@@ -87,6 +87,15 @@ pub enum ExecuteMsg {
     },
     /// Cancels a DCA order, returning any native asset back to the user
     CancelDcaOrder { initial_asset: Asset },
+    /// Modifies an existing DCA order, allowing the user to change certain parameters
+    ModifyDcaOrder {
+        old_initial_asset: AssetInfo,
+        new_initial_asset: Asset,
+        new_target_asset: AssetInfo,
+        new_interval: u64,
+        new_dca_amount: Uint128,
+        should_reset_purchase_time: bool,
+    },
 }
 
 /// This structure describes the query messages available in the contract
