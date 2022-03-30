@@ -14,19 +14,22 @@ use crate::{
 };
 
 /// ## Description
-/// Performs a DCA purchase on behalf of another user using the route specified
+/// Performs a DCA purchase on behalf of another user using the hop route specified.
+///
 /// Returns a [`ContractError`] as a failure, otherwise returns a [`Response`] with the specified
-/// attributes if the operation was successful
+/// attributes if the operation was successful.
 /// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * `deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * **env** is an object of type [`Env`].
+/// * `env` - The [`Env`] of the blockchain.
 ///
-/// * **info** is an object of type [`MessageInfo`] which contains a uusd tip to add.
+/// * `info` - A [`MessageInfo`] from the bot who is performing a DCA purchase on behalf of another
+/// user, who will be rewarded with a uusd tip.
 ///
-/// * **user** is the address of the user as a [`String`] who is having a DCA purchase fulfilled.
+/// * `user` - The address of the user as a [`String`] who is having a DCA purchase fulfilled.
 ///
-/// * **hops** is a [`Vec<SwapOperation>`] of the operations to complete in the swap.
+/// * `hops` - A [`Vec<SwapOperation>`] of the hop operations to complete in the swap to purchase
+/// the target asset.
 pub fn perform_dca_purchase(
     deps: DepsMut,
     env: Env,

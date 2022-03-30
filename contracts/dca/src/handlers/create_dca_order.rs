@@ -8,25 +8,28 @@ use crate::{error::ContractError, get_token_allowance::get_token_allowance, stat
 
 /// ## Description
 /// Creates a new DCA order for a user where the `target_asset` will be purchased with `dca_amount`
-/// of token `initial_asset` every `interval`
+/// of token `initial_asset` every `interval`.
 ///
 /// Returns a [`ContractError`] as a failure, otherwise returns a [`Response`] with the specified
-/// attributes if the operation was successful
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// attributes if the operation was successful.
+/// ## Arguments
+/// * `deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * **env** is an object of type [`Env`].
+/// * `env` - The [`Env`] of the blockchain.
 ///
-/// * **info** is an object of type [`MessageInfo`] which contains any native tokens needed to
-/// create the DCA order.
+/// * `info` - A [`MessageInfo`] from the sender who wants to create their order, containing the
+/// [`AssetInfo::NativeToken`] if the `initial_asset` is a native token.
 ///
-/// * **initial_asset** is the asset that is being spent to create DCA orders.
+/// * `initial_asset` - The [`Asset`] that is being spent to purchase DCA orders. If the asset is a
+/// Token (non-native), the contact will need to have the allowance for the DCA contract set to the
+/// `initial_asset.amount`.
 ///
-/// * **target_asset** is the asset that is being purchased with `initial_asset`.
+/// * `target_asset` - The [`AssetInfo`] that is being purchased with `initial_asset`.
 ///
-/// * **interval** is the time in seconds between DCA purchases.
+/// * `interval` - The time in seconds between DCA purchases.
 ///
-/// * **dca_amount** is the amount of `initial_asset` to spend each DCA purchase.
+/// * `dca_amount` - A [`Uint128`] representing the amount of `initial_asset` to spend each DCA
+/// purchase.
 pub fn create_dca_order(
     deps: DepsMut,
     env: Env,

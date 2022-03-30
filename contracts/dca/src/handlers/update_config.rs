@@ -5,25 +5,29 @@ use crate::{error::ContractError, state::CONFIG};
 
 /// ## Description
 /// Updates the contract configuration with the specified optional parameters.
+///
+/// If any new configuration value is excluded, the current configuration value will remain
+/// unchanged.
+///
 /// Returns a [`ContractError`] as a failure, otherwise returns a [`Response`] with the specified
-/// attributes if the operation was successful
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// attributes if the operation was successful.
+/// ## Arguments
+/// * `deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * `info` - A [`MessageInfo`] from the factory contract owner who wants to modify the
+/// configuration of the contract.
 ///
-/// * **max_hops** is an optional [`u8`] which represents the new maximum amount of hops per swap. If
-/// excluded, the current config value will not be changed.
+/// * `max_hops` - An optional value which represents the new maximum amount of hops per swap if the
+/// user does not specify a value.
 ///
-/// * **per_hop_fee** is an optional [`Uint128`] which represents the new uusd fee paid to bots per hop
-/// executed in a dca swap purchase. If excluded, the current config value will not be changed.
+/// * `per_hop_fee` - An optional [`Uint128`] which represents the new uusd fee paid to bots per hop
+/// executed in a DCA purchase.
 ///
-/// * **whitelisted_tokens** is an optional [`Vec<AssetInfo>`] which represents the new whitelisted tokens that
-/// can be used in a swap for dca purchases. If excluded, the current config value will not be
-/// changed.
+/// * `whitelisted_tokens` - An optional [`Vec<AssetInfo>`] which represents the new whitelisted
+/// tokens that can be used in a hop route for DCA purchases.
 ///
-/// * **max_spread** is an optional [`Decimal`] which represents the new maximum spread for each DCA
-/// purchase. If excluded, the current config value will not be changed.
+/// * `max_spread` - An optional [`Decimal`] which represents the new maximum spread for each DCA
+/// purchase if the user does not specify a value.
 pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,

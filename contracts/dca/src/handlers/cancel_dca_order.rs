@@ -6,14 +6,14 @@ use crate::{error::ContractError, state::USER_DCA};
 /// ## Description
 /// Cancels a users DCA purchase so that it will no longer be fulfilled.
 ///
-/// Returns the `initial_asset` back to the user.
+/// Returns the `initial_asset` back to the user if it was a native token.
 ///
 /// Returns a [`ContractError`] as a failure, otherwise returns a [`Response`] with the specified
-/// attributes if the operation was successful
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// attributes if the operation was successful.
+/// ## Arguments
+/// * `deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * **info** is an object of type [`MessageInfo`] which contains a uusd tip to add.
+/// * `info` - A [`MessageInfo`] from the sender who wants to cancel their order.
 ///
 /// * `initial_asset` The [`AssetInfo`] which the user wants to cancel the DCA order for.
 pub fn cancel_dca_order(

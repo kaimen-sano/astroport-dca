@@ -8,12 +8,13 @@ use crate::{
 
 /// ## Description
 /// Adds a tip to the contract for a users DCA purchases.
-/// Returns a [`ContractError`] as a failure, otherwise returns a [`Response`] with the specified
-/// attributes if the operation was successful
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **info** is an object of type [`MessageInfo`] which contains a uusd tip to add.
+/// Returns a [`ContractError`] as a failure, otherwise returns a [`Response`] with the specified
+/// attributes if the operation was successful.
+/// ## Arguments
+/// * `deps` - A [`DepsMut`] that contains the dependencies.
+///
+/// * `info` - A [`MessageInfo`] which contains a uusd tip to add to a users tip balance.
 pub fn add_bot_tip(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let amount = info
         .funds

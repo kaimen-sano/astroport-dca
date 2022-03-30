@@ -9,14 +9,15 @@ use crate::{get_token_allowance::get_token_allowance, state::USER_DCA};
 /// ## Description
 /// Returns a users DCA orders currently set.
 ///
-/// The result is returned in a [`Vec<DcaInfo`] object of the users current DCA orders.
+/// The result is returned in a [`Vec<DcaInfo`] object of the users current DCA orders with the
+/// `amount` of each order set to the native token amount that can be spent, or the token allowance.
 ///
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// ## Arguments
+/// * `deps` - A [`Deps`] that contains the dependencies.
 ///
-/// * **env** is an object of type [`Env`].
+/// * `env` - The [`Env`] of the blockchain.
 ///
-/// * **user** is the users lowercase address of type [`String`].
+/// * `user` - The users lowercase address as a [`String`].
 pub fn get_user_dca_orders(deps: Deps, env: Env, user: String) -> StdResult<Vec<DcaInfo>> {
     let user_address = addr_validate_to_lower(deps.api, &user)?;
 

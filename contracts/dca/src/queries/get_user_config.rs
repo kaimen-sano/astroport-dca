@@ -8,10 +8,10 @@ use crate::state::{UserConfig, USER_CONFIG};
 ///
 /// The result is returned in a [`UserConfig`] object.
 ///
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// ## Arguments
+/// * `deps` - A [`Deps`] that contains the dependencies.
 ///
-/// * **user** is the users lowercase address of type [`String`].
+/// * `user` - The users lowercase address as a [`String`].
 pub fn get_user_config(deps: Deps, user: String) -> StdResult<UserConfig> {
     let user_address = addr_validate_to_lower(deps.api, &user)?;
 

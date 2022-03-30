@@ -3,7 +3,7 @@ use cosmwasm_std::{attr, coins, BankMsg, DepsMut, Env, MessageInfo, Response, Ui
 
 use crate::{error::ContractError, get_token_allowance::get_token_allowance, state::USER_DCA};
 
-/// Stores a modified dca order parameters
+/// Stores a modified dca order new parameters
 pub struct ModifyDcaOrderParameters {
     /// The old [`AssetInfo`] that was used to purchase DCA orders.
     pub old_initial_asset: AssetInfo,
@@ -29,17 +29,17 @@ pub struct ModifyDcaOrderParameters {
 /// If the user decreases the size of their order, they will be refunded with the difference.
 ///
 /// Returns a [`ContractError`] as a failure, otherwise returns a [`Response`] with the specified
-/// attributes if the operation was successful
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// attributes if the operation was successful.
+/// ## Arguments
+/// * `deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * **env** is an object of type [`Env`].
+/// * `env` - The [`Env`] of the blockchain.
 ///
-/// * **info** is an object of type [`MessageInfo`] which contains any native tokens needed to
-/// modify the DCA order if the order is being increased in size.
+/// * `info` - A [`MessageInfo`] from the sender who wants to modify their order, containing the
+/// [`AssetInfo::NativeToken`] if the DCA order is being increased in size.
 ///
-/// * **order_details** is the [`ModifyDcaOrderParameters`] that stores the details about the old
-/// and new dca order.
+/// * `order_details` - The [`ModifyDcaOrderParameters`] details about the old and new DCA order
+/// parameters.
 pub fn modify_dca_order(
     deps: DepsMut,
     env: Env,

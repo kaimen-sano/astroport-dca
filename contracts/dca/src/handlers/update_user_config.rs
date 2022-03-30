@@ -7,18 +7,19 @@ use crate::{
 
 /// ## Description
 /// Updates a users configuration with the specified parameters.
+///
 /// Returns a [`ContractError`] as a failure, otherwise returns a [`Response`] with the specified
-/// attributes if the operation was successful
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// attributes if the operation was successful.
+/// ## Arguments
+/// * `deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * `info` - A [`MessageInfo`] from the sender who wants to update their user configuration.
 ///
-/// * **max_hops** is a [`u8`] value wrapped in an [`Option`] which represents the new maximum
-/// amount of hops per swap. If excluded, the user will use the config set by the contract.
+/// * `max_hops` - A `u8` value wrapped in an [`Option`] which represents the new maximum amount of
+/// hops per DCA purchase. If `None`, the user will use the default config set by the contract.
 ///
-/// * **max_spread** is a [`Decimal`] value wrapped in an [`Option`] which represents the new maximum
-/// spread for each DCA purchase. If excluded, the user will use the config set by the contract.
+/// * `max_spread` - A [`Decimal`] value wrapped in an [`Option`] which represents the new maximum
+/// spread for each DCA purchase. If `None`, the user will use the config set by the contract.
 pub fn update_user_config(
     deps: DepsMut,
     info: MessageInfo,

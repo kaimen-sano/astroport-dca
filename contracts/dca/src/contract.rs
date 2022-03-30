@@ -23,15 +23,17 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// ## Description
 /// Creates a new contract with the specified parameters in [`InstantiateMsg`].
+///
 /// Returns a [`Response`] with the specified attributes if the operation was successful,
 /// or a [`ContractError`] if the contract was not created.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// ## Arguments
+/// * `deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * **env** is an object of type [`Env`].
+/// * `_env` - The [`Env`] of the blockchain.
 ///
-/// * **_info** is an object of type [`MessageInfo`].
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters for creating the contract.
+/// * `_info` - The [`MessageInfo`] from the contract instantiator.
+///
+/// * `msg` - A [`InstantiateMsg`] which contains the parameters for creating the contract.
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -65,12 +67,12 @@ pub fn instantiate(
 
 /// ## Description
 /// Used for contract migration. Returns a default object of type [`Response`].
-/// ## Params
-/// * **_deps** is an object of type [`DepsMut`].
+/// ## Arguments
+/// * `_deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * **_env** is an object of type [`Env`].
+/// * `_env` - The [`Env`] of the blockchain.
 ///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// * `_msg` - The [`MigrateMsg`] to migrate the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
@@ -78,16 +80,39 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
 
 /// ## Description
 /// Exposes all the execute functions available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// ## Arguments
+/// * `deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * **env** is an object of type [`Env`].
+/// * `env` - The [`Env`] of the blockchain.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * `info` - A [`MessageInfo`] that contains the message information.
 ///
-/// * **msg** is an object of type [`ExecuteMsg`].
+/// * `msg` - The [`ExecuteMsg`] to run.
 ///
 /// ## Execution Messages
+/// * **ExecuteMsg::AddBotTip { }** Adds a bot tip to fund DCA purchases.
+///
+/// * **ExecuteMsg::CancelDcaOrder { initial_asset }** Cancels an existing DCA order.
+///
+/// * **ExecuteMsg::CreateDcaOrder {
+///         initial_asset,
+///         target_asset,
+///         interval,
+///         dca_amount
+///     }** Creates a new DCA order where `initial_asset` will purchase `target_asset`.
+///
+/// * **ExecuteMsg::ModifyDcaOrder {
+///         old_initial_asset,
+///         new_initial_asset,
+///         new_target_asset,
+///         new_interval,
+///         new_dca_amount,
+///         should_reset_purchase_time,
+///     }** Modifies an existing DCA order, allowing the user to change certain parameters.
+///
+/// * **ExecuteMsg::PerformDcaPurchase { user, hops }** Performs a DCA purchase on behalf of a
+/// specified user given a hop route.
+///
 /// * **ExecuteMsg::UpdateConfig {
 ///         max_hops,
 ///         per_hop_fee,
@@ -95,17 +120,10 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
 ///         max_spread
 ///     }** Updates the contract configuration with the specified input parameters.
 ///
-/// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
-/// it depending on the received template.
-///
 /// * **ExecuteMsg::UpdateUserConfig {
-///             assets,
-///             slippage_tolerance,
-///             auto_stake,
-///             receiver,
-///     }** Partially updates a users configuration with the new input parameters.
-///
-/// * **ExecuteMsg::AddBotTip { }** Adds some tip to fund DCA purchases.
+///         max_hops,
+///         max_spread,
+///     }** Updates a users configuration with the new input parameters.
 ///
 /// * **ExecuteMsg::Withdraw { tip }** Withdraws a bot tip from the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -178,12 +196,12 @@ pub fn execute(
 
 /// ## Description
 /// Exposes all the queries available in the contract.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// ## Arguments
+/// * `deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * **_env** is an object of type [`Env`].
+/// * `env` - The [`Env`] of the blockchain.
 ///
-/// * **msg** is an object of type [`QueryMsg`].
+/// * `msg` - The [`QueryMsg`] to run.
 ///
 /// ## Queries
 /// * **QueryMsg::Config {}** Returns information about the configuration of the contract in a
@@ -193,7 +211,7 @@ pub fn execute(
 /// DCA purchases in a [`UserConfig`] object.
 ///
 /// * **QueryMsg::UserDcaOrders {}** Returns information about a specified users current DCA orders
-/// set in a [`Vec<UserDcaOrderResponse>`] object.
+/// set in a [`Vec<DcaInfo>`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {

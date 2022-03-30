@@ -5,14 +5,15 @@ use crate::{error::ContractError, state::USER_CONFIG};
 
 /// ## Description
 /// Withdraws a users bot tip from the contract.
+///
 /// Returns a [`ContractError`] as a failure, otherwise returns a [`Response`] with the specified
-/// attributes if the operation was successful
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// attributes if the operation was successful.
+/// ## Arguments
+/// * `deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * `info` - A [`MessageInfo`] from the sender who wants to withdraw their bot tip.
 ///
-/// * **amount** is a [`Uint128`] representing the amount of uusd to send back to the user.
+/// * `amount`` - A [`Uint128`] representing the amount of uusd to send back to the user.
 pub fn withdraw(
     deps: DepsMut,
     info: MessageInfo,

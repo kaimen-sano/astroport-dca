@@ -50,6 +50,9 @@ impl Default for UserConfig {
     }
 }
 
+/// The contract configuration
 pub const CONFIG: Item<Config> = Item::new("config");
+/// The configuration set by each user
 pub const USER_CONFIG: Map<&Addr, UserConfig> = Map::new("user_config");
+/// The DCA orders for a user
 pub const USER_DCA: Map<&Addr, Vec<DcaInfo>> = Map::new("user_dca");
