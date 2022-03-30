@@ -1,7 +1,4 @@
-use astroport::{
-    asset::{Asset, AssetInfo},
-    dca::DcaInfo,
-};
+use astroport::{asset::AssetInfo, dca::DcaInfo};
 use cosmwasm_std::{attr, BankMsg, Coin, DepsMut, MessageInfo, Response};
 
 use crate::{error::ContractError, state::USER_DCA};
@@ -18,12 +15,11 @@ use crate::{error::ContractError, state::USER_DCA};
 ///
 /// * **info** is an object of type [`MessageInfo`] which contains a uusd tip to add.
 ///
-/// * **initial_asset** is an object of type [`Asset`] which contains the asset the user wishes to
-/// cancel DCA orders for.
+/// * `initial_asset` The [`AssetInfo`] which the user wants to cancel the DCA order for.
 pub fn cancel_dca_order(
     deps: DepsMut,
     info: MessageInfo,
-    initial_asset: Asset,
+    initial_asset: AssetInfo,
 ) -> Result<Response, ContractError> {
     let mut funds = Vec::new();
 
@@ -36,7 +32,7 @@ pub fn cancel_dca_order(
 
             let order_position = orders
                 .iter()
-                .position(|order| order.initial_asset == initial_asset)
+                .position(|order| order.initial_asset.info == initial_asset)
                 .ok_or(ContractError::NonexistentSwap {})?;
 
             let removed_order = &orders[order_position];

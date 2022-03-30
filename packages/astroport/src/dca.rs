@@ -86,7 +86,7 @@ pub enum ExecuteMsg {
         hops: Vec<SwapOperation>,
     },
     /// Cancels a DCA order, returning any native asset back to the user
-    CancelDcaOrder { initial_asset: Asset },
+    CancelDcaOrder { initial_asset: AssetInfo },
     /// Modifies an existing DCA order, allowing the user to change certain parameters
     ModifyDcaOrder {
         old_initial_asset: AssetInfo,
