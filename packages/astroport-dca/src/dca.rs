@@ -70,7 +70,7 @@ pub enum ExecuteMsg {
         new_dca_amount: Uint128,
         should_reset_purchase_time: bool,
     },
-    // Performs a DCA purchase for a specified user given a route
+    /// Performs a DCA purchase for a specified user given a hop route
     PerformDcaPurchase {
         user: String,
         hops: Vec<SwapOperation>,
@@ -102,7 +102,7 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Returns information about the users current being DCA orders in a [`Vec<DcaInfo>`] object.
+    /// Returns information about the users current active DCA orders in a [`Vec<DcaInfo>`] object.
     UserDcaOrders { user: String },
     /// Returns information about the contract configuration in a [`Config`] object.
     Config {},
