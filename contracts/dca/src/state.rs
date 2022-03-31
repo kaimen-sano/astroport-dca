@@ -4,7 +4,7 @@ use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use astroport::dca::DcaInfo;
+use astroport_dca::dca::DcaInfo;
 
 /// Stores the main dca module parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

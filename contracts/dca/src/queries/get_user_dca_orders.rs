@@ -1,7 +1,5 @@
-use astroport::{
-    asset::{addr_validate_to_lower, Asset, AssetInfo},
-    dca::DcaInfo,
-};
+use astroport::asset::{addr_validate_to_lower, Asset, AssetInfo};
+use astroport_dca::dca::DcaInfo;
 use cosmwasm_std::{Deps, Env, StdResult};
 
 use crate::{get_token_allowance::get_token_allowance, state::USER_DCA};

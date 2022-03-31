@@ -2,15 +2,6 @@
 members = [
     "packages/*",
     "contracts/dca",
-    "contracts/factory",
-    "contracts/pair",
-    "contracts/pair_stable",
-    "contracts/pair_stable_bluna",
-    "contracts/router",
-    "contracts/token",
-    "contracts/whitelist",
-    "contracts/tokenomics/*",
-    "contracts/periphery/*"
 ]
 
 [profile.release]

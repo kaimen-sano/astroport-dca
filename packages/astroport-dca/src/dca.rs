@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{
+use astroport::{
     asset::{Asset, AssetInfo},
     router::SwapOperation,
 };

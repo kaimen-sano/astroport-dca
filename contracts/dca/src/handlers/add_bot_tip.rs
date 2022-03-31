@@ -44,7 +44,7 @@ pub fn add_bot_tip(deps: DepsMut, info: MessageInfo) -> Result<Response, Contrac
 
 #[cfg(test)]
 mod tests {
-    use astroport::dca::ExecuteMsg;
+    use astroport_dca::dca::ExecuteMsg;
     use cosmwasm_std::{
         attr, coin,
         testing::{mock_dependencies, mock_env, mock_info},

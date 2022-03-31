@@ -1,8 +1,8 @@
 use astroport::{
     asset::{addr_validate_to_lower, AssetInfo, UUSD_DENOM},
-    dca::DcaInfo,
     router::{ExecuteMsg as RouterExecuteMsg, SwapOperation},
 };
+use astroport_dca::dca::DcaInfo;
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdResult,
     Uint128, WasmMsg,
