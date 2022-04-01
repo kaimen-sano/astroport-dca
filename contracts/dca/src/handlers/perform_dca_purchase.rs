@@ -1,12 +1,13 @@
 use astroport::{
     asset::{addr_validate_to_lower, AssetInfo, UUSD_DENOM},
-    router::{ExecuteMsg as RouterExecuteMsg, SwapOperation},
+    router::{Cw20HookMsg, ExecuteMsg as RouterExecuteMsg, SwapOperation},
 };
 use astroport_dca::dca::DcaInfo;
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdResult,
     Uint128, WasmMsg,
 };
+use cw20::Cw20ExecuteMsg;
 
 use crate::{
     error::ContractError,
@@ -94,9 +95,11 @@ pub fn perform_dca_purchase(
         return Err(ContractError::InsufficientTipBalance {});
     }
 
-    // if native token for initial_asset, we must supply the funds
-    // so we store this and use it when we iterate over the orders
-    let mut funds = Vec::new();
+    // retrieve max_spread from user config, or default to contract set max_spread
+    let max_spread = user_config.max_spread.unwrap_or(contract_config.max_spread);
+
+    // store messages to send in response
+    let mut messages: Vec<CosmosMsg> = Vec::new();
 
     // load user dca orders and update the relevant one
     USER_DCA.update(
@@ -139,12 +142,41 @@ pub fn perform_dca_purchase(
                 order.initial_asset.amount.checked_sub(order.dca_amount)?;
             order.last_purchase = env.block.time.seconds();
 
-            // add funds if native token
-            if let AssetInfo::NativeToken { denom } = &order.initial_asset.info {
-                funds.push(Coin {
-                    amount: order.dca_amount,
-                    denom: denom.clone(),
-                })
+            // add funds and router message to response
+            match &order.initial_asset.info {
+                AssetInfo::NativeToken { denom } => messages.push(
+                    WasmMsg::Execute {
+                        contract_addr: contract_config.router_addr.to_string(),
+                        funds: vec![Coin {
+                            amount: order.dca_amount,
+                            denom: denom.clone(),
+                        }],
+                        msg: to_binary(&RouterExecuteMsg::ExecuteSwapOperations {
+                            operations: hops,
+                            minimum_receive: None,
+                            to: Some(user_address.clone()),
+                            max_spread: Some(max_spread),
+                        })?,
+                    }
+                    .into(),
+                ),
+                AssetInfo::Token { contract_addr } => messages.push(
+                    WasmMsg::Execute {
+                        contract_addr: contract_addr.to_string(),
+                        funds: vec![],
+                        msg: to_binary(&Cw20ExecuteMsg::Send {
+                            contract: contract_config.router_addr.to_string(),
+                            amount: order.dca_amount,
+                            msg: to_binary(&Cw20HookMsg::ExecuteSwapOperations {
+                                operations: hops,
+                                minimum_receive: None,
+                                to: Some(user_address.to_string()),
+                                max_spread: Some(max_spread),
+                            })?,
+                        })?,
+                    }
+                    .into(),
+                ),
             }
 
             Ok(orders)
@@ -164,34 +196,20 @@ pub fn perform_dca_purchase(
         },
     )?;
 
-    // retrieve max_spread from user config, or default to contract set max_spread
-    let max_spread = user_config.max_spread.unwrap_or(contract_config.max_spread);
+    // add tip payment to messages
+    messages.push(
+        BankMsg::Send {
+            to_address: info.sender.to_string(),
+            amount: vec![Coin {
+                amount: tip_cost,
+                denom: UUSD_DENOM.to_string(),
+            }],
+        }
+        .into(),
+    );
 
-    let router_swap_msg: CosmosMsg = WasmMsg::Execute {
-        contract_addr: contract_config.router_addr.to_string(),
-        msg: to_binary(&RouterExecuteMsg::ExecuteSwapOperations {
-            operations: hops,
-            minimum_receive: None,
-            to: Some(user_address),
-            max_spread: Some(max_spread),
-        })?,
-        funds,
-    }
-    .into();
-
-    let tip_payment = BankMsg::Send {
-        to_address: info.sender.to_string(),
-        amount: vec![Coin {
-            amount: tip_cost,
-            denom: UUSD_DENOM.to_string(),
-        }],
-    }
-    .into();
-
-    Ok(Response::new()
-        .add_messages(vec![router_swap_msg, tip_payment])
-        .add_attributes(vec![
-            attr("action", "perform_dca_purchase"),
-            attr("tip_cost", tip_cost),
-        ]))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "perform_dca_purchase"),
+        attr("tip_cost", tip_cost),
+    ]))
 }
