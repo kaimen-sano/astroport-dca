@@ -55,4 +55,7 @@ pub enum ContractError {
 
     #[error("Initial asset and target asset are the same")]
     DuplicateAsset {},
+
+    #[error("DCA amount is greater than deposited amount")]
+    DepositTooSmall {},
 }

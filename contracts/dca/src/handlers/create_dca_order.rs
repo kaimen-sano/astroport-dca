@@ -1,6 +1,6 @@
 use astroport::asset::{Asset, AssetInfo};
 use astroport_dca::dca::DcaInfo;
-use cosmwasm_std::{attr, DepsMut, Env, MessageInfo, Response, Uint128};
+use cosmwasm_std::{attr, DepsMut, Env, MessageInfo, Response, StdError, Uint128};
 
 use crate::{error::ContractError, get_token_allowance::get_token_allowance, state::USER_DCA};
 
@@ -54,6 +54,10 @@ pub fn create_dca_order(
         return Err(ContractError::DuplicateAsset {});
     }
 
+    // check that dca_amount is less than initial_asset.amount
+    if dca_amount > initial_asset.amount {
+        return Err(ContractError::DepositTooSmall {});
+    }
     // check that user has sent the valid tokens to the contract
     // if native token, they should have included it in the message
     // otherwise, if cw20 token, they should have provided the correct allowance
