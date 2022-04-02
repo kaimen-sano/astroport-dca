@@ -49,6 +49,11 @@ pub fn create_dca_order(
         return Err(ContractError::AlreadyDeposited {});
     }
 
+    // check that assets are not duplicate
+    if initial_asset.info == target_asset {
+        return Err(ContractError::DuplicateAsset {});
+    }
+
     // check that user has sent the valid tokens to the contract
     // if native token, they should have included it in the message
     // otherwise, if cw20 token, they should have provided the correct allowance

@@ -52,4 +52,7 @@ pub enum ContractError {
 
     #[error("Asset balance is less than DCA purchase amount")]
     InsufficientBalance {},
+
+    #[error("Initial asset and target asset are the same")]
+    DuplicateAsset {},
 }
