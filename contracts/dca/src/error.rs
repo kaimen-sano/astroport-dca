@@ -32,8 +32,8 @@ pub enum ContractError {
     #[error("Invalid hop route through {token} due to token whitelist")]
     InvalidHopRoute { token: String },
 
-    #[error("The user does not have the specified initial_asset to dca")]
-    NonexistentSwap {},
+    #[error("The user does not have the specified initial_asset to DCA")]
+    NonexistentDca {},
 
     #[error("Swap exceeds maximum of {hops} hops")]
     MaxHopsAssertion { hops: u32 },
@@ -49,4 +49,7 @@ pub enum ContractError {
 
     #[error("Hop route does not end up at target_asset")]
     TargetAssetAssertion {},
+
+    #[error("Asset balance is less than DCA purchase amount")]
+    InsufficientBalance {},
 }

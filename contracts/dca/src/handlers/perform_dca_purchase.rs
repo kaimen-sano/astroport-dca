@@ -4,8 +4,8 @@ use astroport::{
 };
 use astroport_dca::dca::DcaInfo;
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdResult,
-    Uint128, WasmMsg,
+    attr, to_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128,
+    WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -106,7 +106,7 @@ pub fn perform_dca_purchase(
         deps.storage,
         &user_address,
         |orders| -> Result<Vec<DcaInfo>, ContractError> {
-            let mut orders = orders.ok_or(ContractError::NonexistentSwap {})?;
+            let mut orders = orders.ok_or(ContractError::NonexistentDca {})?;
 
             let order = orders
                 .iter_mut()
@@ -121,7 +121,7 @@ pub fn perform_dca_purchase(
                         offer_asset_info, ..
                     } => offer_asset_info == &order.initial_asset.info,
                 })
-                .ok_or(ContractError::NonexistentSwap {})?;
+                .ok_or(ContractError::NonexistentDca {})?;
 
             // check that it has been long enough between dca purchases
             if order.last_purchase + order.interval > env.block.time.seconds() {
@@ -138,8 +138,11 @@ pub fn perform_dca_purchase(
             }
 
             // subtract dca_amount from order and update last_purchase time
-            order.initial_asset.amount =
-                order.initial_asset.amount.checked_sub(order.dca_amount)?;
+            order.initial_asset.amount = order
+                .initial_asset
+                .amount
+                .checked_sub(order.dca_amount)
+                .map_err(|_| ContractError::InsufficientBalance {})?;
             order.last_purchase = env.block.time.seconds();
 
             // add funds and router message to response
@@ -160,23 +163,34 @@ pub fn perform_dca_purchase(
                     }
                     .into(),
                 ),
-                AssetInfo::Token { contract_addr } => messages.push(
-                    WasmMsg::Execute {
-                        contract_addr: contract_addr.to_string(),
-                        funds: vec![],
-                        msg: to_binary(&Cw20ExecuteMsg::Send {
-                            contract: contract_config.router_addr.to_string(),
-                            amount: order.dca_amount,
-                            msg: to_binary(&Cw20HookMsg::ExecuteSwapOperations {
+                AssetInfo::Token { contract_addr } => {
+                    messages.push(
+                        WasmMsg::Execute {
+                            contract_addr: contract_addr.to_string(),
+                            funds: vec![],
+                            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                                owner: user_address.to_string(),
+                                recipient: contract_config.router_addr.to_string(),
+                                amount: order.dca_amount,
+                            })?,
+                        }
+                        .into(),
+                    );
+
+                    messages.push(
+                        WasmMsg::Execute {
+                            contract_addr: contract_config.router_addr.to_string(),
+                            funds: vec![],
+                            msg: to_binary(&RouterExecuteMsg::ExecuteSwapOperations {
                                 operations: hops,
                                 minimum_receive: None,
-                                to: Some(user_address.to_string()),
+                                to: Some(user_address.clone()),
                                 max_spread: Some(max_spread),
                             })?,
-                        })?,
-                    }
-                    .into(),
-                ),
+                        }
+                        .into(),
+                    );
+                }
             }
 
             Ok(orders)
@@ -187,10 +201,13 @@ pub fn perform_dca_purchase(
     USER_CONFIG.update(
         deps.storage,
         &user_address,
-        |user_config| -> StdResult<UserConfig> {
+        |user_config| -> Result<UserConfig, ContractError> {
             let mut user_config = user_config.unwrap_or_default();
 
-            user_config.tip_balance = user_config.tip_balance.checked_sub(tip_cost)?;
+            user_config.tip_balance = user_config
+                .tip_balance
+                .checked_sub(tip_cost)
+                .map_err(|_| ContractError::InsufficientTipBalance {})?;
 
             Ok(user_config)
         },

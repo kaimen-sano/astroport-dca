@@ -63,7 +63,7 @@ pub fn modify_dca_order(
     let order = orders
         .iter_mut()
         .find(|order| order.initial_asset.info == old_initial_asset)
-        .ok_or(ContractError::NonexistentSwap {})?;
+        .ok_or(ContractError::NonexistentDca {})?;
 
     let should_refund = order.initial_asset.amount > new_initial_asset.amount;
     let asset_difference = Asset {

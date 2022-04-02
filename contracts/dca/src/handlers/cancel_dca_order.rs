@@ -29,12 +29,12 @@ pub fn cancel_dca_order(
         deps.storage,
         &info.sender,
         |orders| -> Result<Vec<DcaInfo>, ContractError> {
-            let mut orders = orders.ok_or(ContractError::NonexistentSwap {})?;
+            let mut orders = orders.ok_or(ContractError::NonexistentDca {})?;
 
             let order_position = orders
                 .iter()
                 .position(|order| order.initial_asset.info == initial_asset)
-                .ok_or(ContractError::NonexistentSwap {})?;
+                .ok_or(ContractError::NonexistentDca {})?;
 
             let removed_order = &orders[order_position];
             if let AssetInfo::NativeToken { denom } = &removed_order.initial_asset.info {
