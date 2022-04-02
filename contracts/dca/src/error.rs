@@ -58,4 +58,7 @@ pub enum ContractError {
 
     #[error("DCA amount is greater than deposited amount")]
     DepositTooSmall {},
+
+    #[error("Initial asset deposited is not divisible by the DCA amount")]
+    IndivisibleDeposit {},
 }

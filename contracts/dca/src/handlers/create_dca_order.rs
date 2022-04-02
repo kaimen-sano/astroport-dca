@@ -58,6 +58,17 @@ pub fn create_dca_order(
     if dca_amount > initial_asset.amount {
         return Err(ContractError::DepositTooSmall {});
     }
+
+    // check that initial_asset.amount is divisible by dca_amount
+    if !initial_asset
+        .amount
+        .checked_rem(dca_amount)
+        .map_err(|e| StdError::DivideByZero { source: e })?
+        .is_zero()
+    {
+        return Err(ContractError::IndivisibleDeposit {});
+    }
+
     // check that user has sent the valid tokens to the contract
     // if native token, they should have included it in the message
     // otherwise, if cw20 token, they should have provided the correct allowance
