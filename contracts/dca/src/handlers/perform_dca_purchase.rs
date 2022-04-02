@@ -1,6 +1,6 @@
 use astroport::{
     asset::{addr_validate_to_lower, AssetInfo, UUSD_DENOM},
-    router::{Cw20HookMsg, ExecuteMsg as RouterExecuteMsg, SwapOperation},
+    router::{ExecuteMsg as RouterExecuteMsg, SwapOperation},
 };
 use astroport_dca::dca::DcaInfo;
 use cosmwasm_std::{
@@ -146,52 +146,45 @@ pub fn perform_dca_purchase(
             order.last_purchase = env.block.time.seconds();
 
             // add funds and router message to response
-            match &order.initial_asset.info {
-                AssetInfo::NativeToken { denom } => messages.push(
+            if let AssetInfo::Token { contract_addr } = &order.initial_asset.info {
+                // send a TransferFrom request to the token to the router
+                messages.push(
                     WasmMsg::Execute {
-                        contract_addr: contract_config.router_addr.to_string(),
-                        funds: vec![Coin {
+                        contract_addr: contract_addr.to_string(),
+                        funds: vec![],
+                        msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                            owner: user_address.to_string(),
+                            recipient: contract_config.router_addr.to_string(),
                             amount: order.dca_amount,
-                            denom: denom.clone(),
-                        }],
-                        msg: to_binary(&RouterExecuteMsg::ExecuteSwapOperations {
-                            operations: hops,
-                            minimum_receive: None,
-                            to: Some(user_address.clone()),
-                            max_spread: Some(max_spread),
                         })?,
                     }
                     .into(),
-                ),
-                AssetInfo::Token { contract_addr } => {
-                    messages.push(
-                        WasmMsg::Execute {
-                            contract_addr: contract_addr.to_string(),
-                            funds: vec![],
-                            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                                owner: user_address.to_string(),
-                                recipient: contract_config.router_addr.to_string(),
-                                amount: order.dca_amount,
-                            })?,
-                        }
-                        .into(),
-                    );
-
-                    messages.push(
-                        WasmMsg::Execute {
-                            contract_addr: contract_config.router_addr.to_string(),
-                            funds: vec![],
-                            msg: to_binary(&RouterExecuteMsg::ExecuteSwapOperations {
-                                operations: hops,
-                                minimum_receive: None,
-                                to: Some(user_address.clone()),
-                                max_spread: Some(max_spread),
-                            })?,
-                        }
-                        .into(),
-                    );
-                }
+                );
             }
+
+            // if it is a native token, we need to send the funds
+            let funds = match &order.initial_asset.info {
+                AssetInfo::NativeToken { denom } => vec![Coin {
+                    amount: order.dca_amount,
+                    denom: denom.clone(),
+                }],
+                AssetInfo::Token { .. } => vec![],
+            };
+
+            // tell the router to perform swap operations
+            messages.push(
+                WasmMsg::Execute {
+                    contract_addr: contract_config.router_addr.to_string(),
+                    funds,
+                    msg: to_binary(&RouterExecuteMsg::ExecuteSwapOperations {
+                        operations: hops,
+                        minimum_receive: None,
+                        to: Some(user_address.clone()),
+                        max_spread: Some(max_spread),
+                    })?,
+                }
+                .into(),
+            );
 
             Ok(orders)
         },
