@@ -114,3 +114,15 @@ pub enum QueryMsg {
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
+
+/// Describes information for a UserDcaOrders query
+///
+/// Contains both the user DCA order and the cw20 token allowance, or, if the initial asset is a
+/// native token, the balance.
+///
+/// This is useful for bots and front-end to distinguish between a users token allowance (which may
+/// have changed) for the DCA contract, and the created DCA order size.
+pub struct DcaQueryInfo {
+    token_allowance: Uint128,
+    info: DcaInfo,
+}
