@@ -3,7 +3,7 @@ use std::str::FromStr;
 use crate::error::ContractError;
 use crate::handlers::{
     add_bot_tip, cancel_dca_order, create_dca_order, modify_dca_order, perform_dca_purchase,
-    update_config, update_user_config, withdraw, ModifyDcaOrderParameters,
+    update_config, update_user_config, withdraw, CreateDcaOrder, ModifyDcaOrderParameters,
 };
 use crate::queries::{get_config, get_user_config, get_user_dca_orders};
 use crate::state::{Config, CONFIG};
@@ -34,7 +34,6 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// * `_info` - The [`MessageInfo`] from the contract instantiator.
 ///
 /// * `msg` - A [`InstantiateMsg`] which contains the parameters for creating the contract.
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -53,7 +52,7 @@ pub fn instantiate(
 
     let config = Config {
         max_hops: msg.max_hops,
-        per_hop_fee: msg.per_hop_fee,
+        whitelisted_fee_assets: msg.whitelisted_fee_assets,
         whitelisted_tokens: msg.whitelisted_tokens,
         max_spread,
         factory_addr,
@@ -90,7 +89,7 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
 /// * `msg` - The [`ExecuteMsg`] to run.
 ///
 /// ## Execution Messages
-/// * **ExecuteMsg::AddBotTip { }** Adds a bot tip to fund DCA purchases.
+/// * **ExecuteMsg::AddBotTip { assets: Vec<Asset> }** Adds a bot tip to fund DCA purchases.
 ///
 /// * **ExecuteMsg::CancelDcaOrder { initial_asset }** Cancels an existing DCA order.
 ///
@@ -136,14 +135,14 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig {
             max_hops,
-            per_hop_fee,
             whitelisted_tokens,
+            whitelisted_fee_assets,
             max_spread,
         } => update_config(
             deps,
             info,
             max_hops,
-            per_hop_fee,
+            whitelisted_fee_assets,
             whitelisted_tokens,
             max_spread,
         ),
@@ -156,39 +155,46 @@ pub fn execute(
             target_asset,
             interval,
             dca_amount,
+            first_purchase,
         } => create_dca_order(
             deps,
             env,
             info,
-            initial_asset,
-            target_asset,
-            interval,
-            dca_amount,
+            CreateDcaOrder {
+                initial_asset,
+                target_asset,
+                interval,
+                dca_amount,
+                first_purchase,
+            },
         ),
-        ExecuteMsg::AddBotTip {} => add_bot_tip(deps, info),
-        ExecuteMsg::Withdraw { tip: amount } => withdraw(deps, info, amount),
-        ExecuteMsg::PerformDcaPurchase { user, hops } => {
-            perform_dca_purchase(deps, env, info, user, hops)
-        }
-        ExecuteMsg::CancelDcaOrder { initial_asset } => cancel_dca_order(deps, info, initial_asset),
+        ExecuteMsg::AddBotTip { assets } => add_bot_tip(deps, env, info, assets),
+        ExecuteMsg::Withdraw { assets } => withdraw(deps, info, assets),
+        ExecuteMsg::PerformDcaPurchase {
+            user,
+            hops,
+            id,
+            fee_redeem,
+        } => perform_dca_purchase(deps, env, info, user, id, hops, fee_redeem),
+        ExecuteMsg::CancelDcaOrder { id } => cancel_dca_order(deps, info, id),
         ExecuteMsg::ModifyDcaOrder {
-            old_initial_asset,
+            id,
             new_initial_asset,
             new_target_asset,
             new_interval,
             new_dca_amount,
-            should_reset_purchase_time,
+            new_first_purchase,
         } => modify_dca_order(
             deps,
             env,
             info,
             ModifyDcaOrderParameters {
-                old_initial_asset,
+                id,
                 new_initial_asset,
                 new_target_asset,
                 new_interval,
                 new_dca_amount,
-                should_reset_purchase_time,
+                new_first_purchase,
             },
         ),
     }

@@ -1,8 +1,22 @@
 use astroport::asset::{Asset, AssetInfo};
 use astroport_dca::dca::DcaInfo;
-use cosmwasm_std::{attr, DepsMut, Env, MessageInfo, Response, StdError, Uint128};
+use cosmwasm_std::{
+    attr, DepsMut, Env, MessageInfo, OverflowError, OverflowOperation, Response, StdError, Uint128,
+};
 
-use crate::{error::ContractError, get_token_allowance::get_token_allowance, state::USER_DCA};
+use crate::{
+    error::ContractError,
+    get_token_allowance::get_token_allowance,
+    state::{USER_CONFIG, USER_DCA},
+};
+
+pub struct CreateDcaOrder {
+    pub initial_asset: Asset,
+    pub target_asset: AssetInfo,
+    pub interval: u64,
+    pub dca_amount: Uint128,
+    pub first_purchase: Option<u64>,
+}
 
 /// ## Description
 /// Creates a new DCA order for a user where the `target_asset` will be purchased with `dca_amount`
@@ -32,11 +46,16 @@ pub fn create_dca_order(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    initial_asset: Asset,
-    target_asset: AssetInfo,
-    interval: u64,
-    dca_amount: Uint128,
+    order_info: CreateDcaOrder,
 ) -> Result<Response, ContractError> {
+    let CreateDcaOrder {
+        initial_asset,
+        target_asset,
+        interval,
+        dca_amount,
+        first_purchase,
+    } = order_info;
+
     // check that user has not previously created dca strategy with this initial_asset
     let mut orders = USER_DCA
         .may_load(deps.storage, &info.sender)?
@@ -82,12 +101,26 @@ pub fn create_dca_order(
         }
     }
 
+    let id = USER_CONFIG
+        .update::<_, StdError>(deps.storage, &info.sender, |config| {
+            let mut config = config.unwrap_or_default();
+
+            config.last_id = config
+                .last_id
+                .checked_add(1)
+                .ok_or_else(|| OverflowError::new(OverflowOperation::Add, config.last_id, 1))?;
+
+            Ok(config)
+        })?
+        .last_id;
+
     // store dca order
     orders.push(DcaInfo {
+        id,
         initial_asset: initial_asset.clone(),
         target_asset: target_asset.clone(),
         interval,
-        last_purchase: 0,
+        last_purchase: first_purchase.unwrap_or_default(),
         dca_amount,
     });
 

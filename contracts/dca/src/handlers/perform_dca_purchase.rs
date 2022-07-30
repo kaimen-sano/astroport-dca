@@ -1,17 +1,17 @@
 use astroport::{
-    asset::{addr_validate_to_lower, AssetInfo, UUSD_DENOM},
+    asset::{addr_validate_to_lower, Asset, AssetInfo},
     router::{ExecuteMsg as RouterExecuteMsg, SwapOperation},
 };
 use astroport_dca::dca::DcaInfo;
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128,
-    WasmMsg,
+    attr, to_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
+    Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
 use crate::{
     error::ContractError,
-    state::{UserConfig, CONFIG, USER_CONFIG, USER_DCA},
+    state::{CONFIG, USER_CONFIG, USER_DCA},
 };
 
 /// ## Description
@@ -29,20 +29,27 @@ use crate::{
 ///
 /// * `user` - The address of the user as a [`String`] who is having a DCA purchase fulfilled.
 ///
+/// * `id` - A [`u64`] representing the ID of the DCA order for the user
+///
 /// * `hops` - A [`Vec<SwapOperation>`] of the hop operations to complete in the swap to purchase
 /// the target asset.
+///
+/// * `fee_redeem` - A [`Vec<Asset>`] of the fees redeemed by the sender for processing the DCA
+/// order.
 pub fn perform_dca_purchase(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     user: String,
+    id: u64,
     hops: Vec<SwapOperation>,
+    fee_redeem: Vec<Asset>,
 ) -> Result<Response, ContractError> {
     // validate user address
     let user_address = addr_validate_to_lower(deps.api, &user)?;
 
     // retrieve configs
-    let user_config = USER_CONFIG
+    let mut user_config = USER_CONFIG
         .may_load(deps.storage, &user_address)?
         .unwrap_or_default();
     let contract_config = CONFIG.load(deps.storage)?;
@@ -87,19 +94,89 @@ pub fn perform_dca_purchase(
         }
     }
 
+    // validate that fee_redeem is a valid combination
+    let requested_fee_hops: Uint128 = fee_redeem
+        .iter()
+        .map(|a| {
+            let whitelisted_asset = contract_config
+                .whitelisted_fee_assets
+                .iter()
+                .find(|w| a.info == w.info)
+                .ok_or(ContractError::NonWhitelistedTipAsset {
+                    asset: a.info.clone(),
+                })?;
+
+            // ensure that it is exactly divisible
+            if !a
+                .amount
+                .checked_rem(whitelisted_asset.amount)
+                .map_err(|e| StdError::DivideByZero { source: e })?
+                .is_zero()
+            {
+                return Err(ContractError::IndivisibleDeposit {});
+            }
+
+            Ok(a.amount
+                .checked_div(whitelisted_asset.amount)
+                .map_err(|e| StdError::DivideByZero { source: e })?)
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .iter()
+        .sum();
+
+    if requested_fee_hops > Uint128::new(u128::from(hops_len)) {
+        return Err(ContractError::RedeemTipTooLarge {
+            requested: requested_fee_hops,
+            performed: Uint128::new(u128::from(hops_len)),
+        });
+    }
+
+    // store messages to send in response
+    let mut messages: Vec<CosmosMsg> = Vec::new();
+
     // validate purchaser has enough funds to pay the sender
-    let tip_cost = contract_config
-        .per_hop_fee
-        .checked_mul(Uint128::from(hops_len))?;
-    if tip_cost > user_config.tip_balance {
-        return Err(ContractError::InsufficientTipBalance {});
+    for fee_asset in fee_redeem {
+        let mut user_balance = user_config
+            .tip_balance
+            .iter_mut()
+            .find(|a| a.info == fee_asset.info)
+            .ok_or(ContractError::InsufficientTipBalance {})?;
+
+        // remove tip from purchaser
+        let new_balance = user_balance
+            .amount
+            .checked_sub(fee_asset.amount)
+            .map_err(|_| ContractError::InsufficientTipBalance {})?;
+
+        user_balance.amount = new_balance;
+
+        // add tip payment to messages
+        let tip_payment_message = match fee_asset.info {
+            AssetInfo::NativeToken { denom } => BankMsg::Send {
+                to_address: info.clone().sender.to_string(),
+                amount: vec![Coin {
+                    amount: fee_asset.amount,
+                    denom,
+                }],
+            }
+            .into(),
+            AssetInfo::Token { contract_addr } => WasmMsg::Execute {
+                contract_addr: contract_addr.into_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: user_address.clone().into_string(),
+                    recipient: info.sender.clone().into_string(),
+                    amount: fee_asset.amount,
+                })?,
+                funds: vec![],
+            }
+            .into(),
+        };
+
+        messages.push(tip_payment_message);
     }
 
     // retrieve max_spread from user config, or default to contract set max_spread
     let max_spread = user_config.max_spread.unwrap_or(contract_config.max_spread);
-
-    // store messages to send in response
-    let mut messages: Vec<CosmosMsg> = Vec::new();
 
     // load user dca orders and update the relevant one
     USER_DCA.update(
@@ -190,36 +267,11 @@ pub fn perform_dca_purchase(
         },
     )?;
 
-    // remove tip from purchaser
-    USER_CONFIG.update(
-        deps.storage,
-        &user_address,
-        |user_config| -> Result<UserConfig, ContractError> {
-            let mut user_config = user_config.unwrap_or_default();
-
-            user_config.tip_balance = user_config
-                .tip_balance
-                .checked_sub(tip_cost)
-                .map_err(|_| ContractError::InsufficientTipBalance {})?;
-
-            Ok(user_config)
-        },
-    )?;
-
-    // add tip payment to messages
-    messages.push(
-        BankMsg::Send {
-            to_address: info.sender.to_string(),
-            amount: vec![Coin {
-                amount: tip_cost,
-                denom: UUSD_DENOM.to_string(),
-            }],
-        }
-        .into(),
-    );
+    // save new config
+    USER_CONFIG.save(deps.storage, &user_address, &user_config)?;
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "perform_dca_purchase"),
-        attr("tip_cost", tip_cost),
+        attr("id", id.to_string()),
     ]))
 }

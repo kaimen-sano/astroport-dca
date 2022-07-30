@@ -5,8 +5,8 @@ use crate::{error::ContractError, get_token_allowance::get_token_allowance, stat
 
 /// Stores a modified dca order new parameters
 pub struct ModifyDcaOrderParameters {
-    /// The old [`AssetInfo`] that was used to purchase DCA orders.
-    pub old_initial_asset: AssetInfo,
+    /// The users [`u64`] ID of the order.
+    pub id: u64,
     /// The new [`Asset`] that is being spent to create DCA orders.
     pub new_initial_asset: Asset,
     /// The [`AssetInfo`] that is being purchased with `new_initial_asset`.
@@ -15,8 +15,9 @@ pub struct ModifyDcaOrderParameters {
     pub new_interval: u64,
     /// a [`Uint128`] amount of `new_initial_asset` to spend each DCA purchase.
     pub new_dca_amount: Uint128,
-    /// A bool flag that determines if the order's last purchase time should be reset.
-    pub should_reset_purchase_time: bool,
+    /// An optional parameter that determines if the order's next purchase should be set to
+    /// `new_first_purchase`.
+    pub new_first_purchase: Option<u64>,
 }
 
 /// ## Description
@@ -47,12 +48,12 @@ pub fn modify_dca_order(
     order_details: ModifyDcaOrderParameters,
 ) -> Result<Response, ContractError> {
     let ModifyDcaOrderParameters {
-        old_initial_asset,
+        id,
         new_initial_asset,
         new_target_asset,
         new_interval,
         new_dca_amount,
-        should_reset_purchase_time,
+        new_first_purchase,
     } = order_details;
 
     let mut orders = USER_DCA
@@ -62,7 +63,7 @@ pub fn modify_dca_order(
     // check that old_initial_asset.info exists
     let order = orders
         .iter_mut()
-        .find(|order| order.initial_asset.info == old_initial_asset)
+        .find(|order| order.id == id)
         .ok_or(ContractError::NonexistentDca {})?;
 
     let should_refund = order.initial_asset.amount > new_initial_asset.amount;
@@ -81,14 +82,14 @@ pub fn modify_dca_order(
 
     let mut messages = Vec::new();
 
-    if old_initial_asset == new_initial_asset.info {
+    if order.initial_asset.info == new_initial_asset.info {
         if !should_refund {
             // if the user needs to have deposited more, check that we have the correct funds/allowance sent
             // this is the case only when the old_initial_asset and new_initial_asset are the same
 
             // if native token, they should have included it in the message
             // otherwise, if cw20 token, they should have provided the correct allowance
-            match &old_initial_asset {
+            match &order.initial_asset.info {
                 AssetInfo::NativeToken { .. } => {
                     asset_difference.assert_sent_native_token_balance(&info)?
                 }
@@ -139,18 +140,25 @@ pub fn modify_dca_order(
     order.interval = new_interval;
     order.dca_amount = new_dca_amount;
 
-    if should_reset_purchase_time {
-        order.last_purchase = 0;
+    if let Some(new_first_purchase) = new_first_purchase {
+        order.last_purchase = new_first_purchase;
     }
 
     USER_DCA.save(deps.storage, &info.sender, &orders)?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "modify_dca_order"),
-        attr("old_initial_asset", old_initial_asset.to_string()),
+        attr("id", id.to_string()),
         attr("new_initial_asset", new_initial_asset.to_string()),
         attr("new_target_asset", new_target_asset.to_string()),
         attr("new_interval", new_interval.to_string()),
         attr("new_dca_amount", new_dca_amount),
+        attr(
+            "new_first_purchase",
+            match new_first_purchase {
+                Some(t) => t.to_string(),
+                None => "none".to_string(),
+            },
+        ),
     ]))
 }

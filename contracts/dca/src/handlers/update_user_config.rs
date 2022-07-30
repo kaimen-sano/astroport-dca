@@ -59,30 +59,31 @@ pub fn update_user_config(
 mod tests {
     use std::str::FromStr;
 
+    use astroport::asset::{Asset, AssetInfo};
     use astroport_dca::dca::ExecuteMsg;
     use cosmwasm_std::{
         attr, coin,
         testing::{mock_dependencies, mock_env, mock_info},
-        Decimal, Response, Uint128,
+        Addr, Decimal, Response, Uint128,
     };
 
     use crate::{
         contract::execute,
         state::{UserConfig, USER_CONFIG},
+        tests::{mock_creator, mock_instantiate},
     };
 
     #[test]
     fn does_update_user_config() {
         let mut deps = mock_dependencies();
 
-        let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::UpdateUserConfig {
             max_hops: Some(6),
             max_spread: Some(Decimal::from_str("0.025").unwrap()),
         };
 
         // does send the write response
-        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+        let res = execute(deps.as_mut(), mock_env(), mock_creator(), msg).unwrap();
         assert_eq!(
             res,
             Response::new().add_attributes(vec![
@@ -93,44 +94,63 @@ mod tests {
         );
 
         // does update config
-        let config = USER_CONFIG.load(&deps.storage, &info.sender).unwrap();
+        let config = USER_CONFIG
+            .load(&deps.storage, &mock_creator().sender)
+            .unwrap();
         assert_eq!(
             config,
             UserConfig {
+                last_id: 0,
                 max_hops: Some(6),
                 max_spread: Some(Decimal::from_str("0.025").unwrap()),
-                tip_balance: Uint128::zero()
+                tip_balance: vec![]
             }
         )
     }
 
     #[test]
     fn does_not_change_tip_balance() {
-        let mut deps = mock_dependencies();
+        let (mut deps, env) = mock_instantiate(
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![Asset {
+                amount: Uint128::new(15_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            }],
+        );
 
-        let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::UpdateUserConfig {
             max_hops: Some(6),
             max_spread: Some(Decimal::from_str("0.025").unwrap()),
         };
 
         // add tip
-        let send_info = mock_info("creator", &[coin(10_000, "uusd")]);
-        let send_tip_msg = ExecuteMsg::AddBotTip {};
+        let tip_assets = vec![Asset {
+            amount: Uint128::new(10_000),
+            info: astroport::asset::AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        }];
+
+        let send_info = mock_info("creator", &[coin(10_000, "uluna")]);
+        let send_tip_msg = ExecuteMsg::AddBotTip {
+            assets: tip_assets.clone(),
+        };
         execute(deps.as_mut(), mock_env(), send_info.clone(), send_tip_msg).unwrap();
 
         // does not modify the tip balance
-        execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+        execute(deps.as_mut(), env, mock_creator(), msg).unwrap();
 
         let config = USER_CONFIG.load(&deps.storage, &send_info.sender).unwrap();
-        assert_eq!(config.tip_balance, send_info.funds[0].amount);
+        assert_eq!(config.tip_balance, tip_assets);
     }
 
     #[test]
     fn does_reset_config() {
         let mut deps = mock_dependencies();
 
-        let info = mock_info("creator", &[]);
         let update_msg = ExecuteMsg::UpdateUserConfig {
             max_hops: Some(4),
             max_spread: Some(Decimal::from_str("0.025").unwrap()),
@@ -141,17 +161,20 @@ mod tests {
         };
 
         // does reset the config
-        execute(deps.as_mut(), mock_env(), info.clone(), update_msg).unwrap();
-        execute(deps.as_mut(), mock_env(), info.clone(), reset_msg).unwrap();
+        execute(deps.as_mut(), mock_env(), mock_creator(), update_msg).unwrap();
+        execute(deps.as_mut(), mock_env(), mock_creator(), reset_msg).unwrap();
 
         // does update config
-        let config = USER_CONFIG.load(&deps.storage, &info.sender).unwrap();
+        let config = USER_CONFIG
+            .load(&deps.storage, &mock_creator().sender)
+            .unwrap();
         assert_eq!(
             config,
             UserConfig {
+                last_id: 0,
                 max_hops: Some(6),
                 max_spread: None,
-                tip_balance: Uint128::zero()
+                tip_balance: vec![]
             }
         )
     }

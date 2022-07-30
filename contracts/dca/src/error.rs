@@ -1,4 +1,5 @@
-use cosmwasm_std::{OverflowError, StdError};
+use astroport::asset::{Asset, AssetInfo};
+use cosmwasm_std::{OverflowError, StdError, Uint128};
 use thiserror::Error;
 
 /// ## Description
@@ -61,4 +62,22 @@ pub enum ContractError {
 
     #[error("Initial asset deposited is not divisible by the DCA amount")]
     IndivisibleDeposit {},
+
+    #[error("Attempt to perform tip deposit with {sent}, but only received {received}")]
+    InvalidTipDeposit { received: Asset, sent: Asset },
+
+    #[error("Tip deposit specified of {asset} was missing in funds")]
+    TipDepositMissingAsset { asset: Asset },
+
+    #[error("Tip asset {asset} is not whitelisted")]
+    NonWhitelistedTipAsset { asset: AssetInfo },
+
+    #[error("Attempt to withdraw asset {asset} that was not deposited")]
+    TipAssetNotDeposited { asset: AssetInfo },
+
+    #[error("Tip redemption of {requested} hops, but only {performed} hops was performed")]
+    RedeemTipTooLarge {
+        requested: Uint128,
+        performed: Uint128,
+    },
 }

@@ -1,5 +1,8 @@
-use astroport::{asset::AssetInfo, querier::query_factory_config};
-use cosmwasm_std::{attr, Decimal, DepsMut, MessageInfo, Response, StdError, Uint128};
+use astroport::{
+    asset::{Asset, AssetInfo},
+    querier::query_factory_config,
+};
+use cosmwasm_std::{attr, Decimal, DepsMut, MessageInfo, Response, StdError};
 
 use crate::{error::ContractError, state::CONFIG};
 
@@ -20,7 +23,7 @@ use crate::{error::ContractError, state::CONFIG};
 /// * `max_hops` - An optional value which represents the new maximum amount of hops per swap if the
 /// user does not specify a value.
 ///
-/// * `per_hop_fee` - An optional [`Uint128`] which represents the new uusd fee paid to bots per hop
+/// * `per_hop_fee` - An optional [`Vec<Asset>`] which represents the new fee paid to bots per hop
 /// executed in a DCA purchase.
 ///
 /// * `whitelisted_tokens` - An optional [`Vec<AssetInfo>`] which represents the new whitelisted
@@ -32,7 +35,7 @@ pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     max_hops: Option<u32>,
-    per_hop_fee: Option<Uint128>,
+    whitelisted_fee_assets: Option<Vec<Asset>>,
     whitelisted_tokens: Option<Vec<AssetInfo>>,
     max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
@@ -49,8 +52,8 @@ pub fn update_config(
             config.max_hops = new_max_hops;
         }
 
-        if let Some(new_per_hop_fee) = per_hop_fee {
-            config.per_hop_fee = new_per_hop_fee;
+        if let Some(new_whitelisted_fee_assets) = whitelisted_fee_assets {
+            config.whitelisted_fee_assets = new_whitelisted_fee_assets;
         }
 
         if let Some(new_whitelisted_tokens) = whitelisted_tokens {

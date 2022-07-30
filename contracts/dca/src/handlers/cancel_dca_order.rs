@@ -16,11 +16,11 @@ use crate::{error::ContractError, state::USER_DCA};
 ///
 /// * `info` - A [`MessageInfo`] from the sender who wants to cancel their order.
 ///
-/// * `initial_asset` The [`AssetInfo`] which the user wants to cancel the DCA order for.
+/// * `initial_asset` The [`u64`] ID which the user wants to cancel the DCA order for.
 pub fn cancel_dca_order(
     deps: DepsMut,
     info: MessageInfo,
-    initial_asset: AssetInfo,
+    id: u64,
 ) -> Result<Response, ContractError> {
     let mut funds = Vec::new();
 
@@ -33,7 +33,7 @@ pub fn cancel_dca_order(
 
             let order_position = orders
                 .iter()
-                .position(|order| order.initial_asset.info == initial_asset)
+                .position(|order| order.id == id)
                 .ok_or(ContractError::NonexistentDca {})?;
 
             let removed_order = &orders[order_position];
@@ -62,10 +62,7 @@ pub fn cancel_dca_order(
 mod tests {
     use astroport::asset::{Asset, AssetInfo};
     use astroport_dca::dca::ExecuteMsg;
-    use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env, mock_info},
-        Addr, DepsMut, MessageInfo, Uint128,
-    };
+    use cosmwasm_std::{testing::mock_env, DepsMut, MessageInfo, Uint128};
 
     use crate::contract::execute;
 
@@ -74,19 +71,21 @@ mod tests {
         info: MessageInfo,
         asset_info: AssetInfo,
         target_asset: AssetInfo,
+        first_purchase: Option<u64>,
     ) {
         let asset = Asset {
             amount: Uint128::new(1_000_000),
             info: asset_info,
         };
 
-        let res = execute(
+        execute(
             deps,
             mock_env(),
             info,
             ExecuteMsg::CreateDcaOrder {
                 initial_asset: asset,
                 target_asset,
+                first_purchase,
                 interval: 60,
                 dca_amount: Uint128::new(500_000),
             },

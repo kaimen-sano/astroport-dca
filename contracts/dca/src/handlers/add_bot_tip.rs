@@ -1,9 +1,10 @@
-use astroport::asset::UUSD_DENOM;
-use cosmwasm_std::{attr, DepsMut, MessageInfo, Response, StdResult};
+use astroport::asset::{Asset, AssetInfo};
+use cosmwasm_std::{attr, DepsMut, Env, MessageInfo, Response};
 
 use crate::{
     error::ContractError,
-    state::{UserConfig, USER_CONFIG},
+    get_token_allowance::get_token_allowance,
+    state::{CONFIG, USER_CONFIG},
 };
 
 /// ## Description
@@ -14,66 +15,135 @@ use crate::{
 /// ## Arguments
 /// * `deps` - A [`DepsMut`] that contains the dependencies.
 ///
-/// * `info` - A [`MessageInfo`] which contains a uusd tip to add to a users tip balance.
-pub fn add_bot_tip(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
-    let amount = info
-        .funds
+/// * `env` - The [`Env`] of the blockchain.
+///
+/// * `info` - A [`MessageInfo`] which contains any native funds to a users tip balance.
+///
+/// * `assets` - A [`Vec<Asset>`] which contains the assets added in the tip message.
+pub fn add_bot_tip(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    assets: Vec<Asset>,
+) -> Result<Response, ContractError> {
+    let mut user_config = USER_CONFIG
+        .may_load(deps.storage, &info.sender)?
+        .unwrap_or_default();
+
+    let config = CONFIG.load(deps.storage)?;
+
+    // check that all assets are whitelisted
+    let invalid_asset = assets
         .iter()
-        .find(|coin| coin.denom == UUSD_DENOM)
-        .ok_or(ContractError::InvalidZeroAmount {})?
-        .amount;
+        .find(|a| !config.is_whitelisted_fee_asset(&a.info));
+    if let Some(a) = invalid_asset {
+        return Err(ContractError::NonWhitelistedTipAsset {
+            asset: a.info.clone(),
+        });
+    }
 
-    // update user tip in contract
-    USER_CONFIG.update(
-        deps.storage,
-        &info.sender,
-        |config| -> StdResult<UserConfig> {
-            let mut config = config.unwrap_or_default();
+    for asset in assets {
+        // validate user sent what they said they did
+        match &asset.info {
+            AssetInfo::NativeToken { denom } => {
+                let sent_funds = info.funds.iter().find(|f| &f.denom == denom).ok_or(
+                    ContractError::TipDepositMissingAsset {
+                        asset: asset.clone(),
+                    },
+                )?;
 
-            config.tip_balance = config.tip_balance.checked_add(amount)?;
+                if sent_funds.amount != asset.amount {
+                    return Err(ContractError::InvalidTipDeposit {
+                        received: Asset {
+                            amount: sent_funds.amount,
+                            info: asset.info.clone(),
+                        },
+                        sent: asset,
+                    });
+                }
+            }
+            AssetInfo::Token { contract_addr } => {
+                let allowance =
+                    get_token_allowance(&deps.as_ref(), &env, &info.sender, contract_addr)?;
+                if allowance != asset.amount {
+                    return Err(ContractError::InvalidTipDeposit {
+                        received: Asset {
+                            amount: allowance,
+                            info: asset.info.clone(),
+                        },
+                        sent: asset,
+                    });
+                }
+            }
+        }
 
-            Ok(config)
-        },
-    )?;
+        // update user tip in state
+        let balance = user_config
+            .tip_balance
+            .iter_mut()
+            .find(|a| a.info == asset.info);
 
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "add_bot_tip"),
-        attr("tip_amount", amount),
-    ]))
+        // increment balance
+        match balance {
+            Some(balance) => {
+                (*balance).amount.checked_add(asset.amount)?;
+            }
+            None => user_config.tip_balance.push(asset),
+        }
+    }
+
+    // save new config
+    USER_CONFIG.save(deps.storage, &info.sender, &user_config)?;
+
+    Ok(Response::new().add_attributes(vec![attr("action", "add_bot_tip")]))
 }
 
 #[cfg(test)]
 mod tests {
+    use astroport::asset::{Asset, AssetInfo};
     use astroport_dca::dca::ExecuteMsg;
-    use cosmwasm_std::{
-        attr, coin,
-        testing::{mock_dependencies, mock_env, mock_info},
-        Addr, Response,
-    };
+    use cosmwasm_std::{attr, coin, testing::mock_info, Addr, Response, Uint128};
+    use cw_multi_test::Executor;
 
     use crate::{
         contract::execute,
         error::ContractError,
         state::{UserConfig, USER_CONFIG},
+        tests::{
+            app_mock_instantiate, mock_app, mock_creator, mock_instantiate, store_dca_module_code,
+        },
     };
 
     #[test]
     fn does_add_bot_tip() {
-        let mut deps = mock_dependencies();
+        let (mut deps, env) = mock_instantiate(
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![Asset {
+                amount: Uint128::new(15_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            }],
+        );
 
-        let tip_sent = coin(10000, "uusd");
+        let tip_sent = coin(10000, "uluna");
 
         let info = mock_info("creator", &[tip_sent.clone()]);
-        let msg = ExecuteMsg::AddBotTip {};
+        let msg = ExecuteMsg::AddBotTip {
+            assets: vec![Asset {
+                amount: tip_sent.amount,
+                info: AssetInfo::NativeToken {
+                    denom: tip_sent.denom.clone(),
+                },
+            }],
+        };
 
         // check that we got the expected response
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let res = execute(deps.as_mut(), env, info, msg).unwrap();
         assert_eq!(
             res,
-            Response::new().add_attributes(vec![
-                attr("action", "add_bot_tip"),
-                attr("tip_amount", tip_sent.amount)
-            ])
+            Response::new().add_attributes(vec![attr("action", "add_bot_tip"),])
         );
 
         // check that user tip balance was added
@@ -83,33 +153,159 @@ mod tests {
         assert_eq!(
             config,
             UserConfig {
-                tip_balance: tip_sent.amount,
+                tip_balance: vec![Asset {
+                    amount: tip_sent.amount,
+                    info: AssetInfo::NativeToken {
+                        denom: tip_sent.denom
+                    }
+                }],
                 ..UserConfig::default()
             }
         )
     }
 
     #[test]
-    fn does_require_funds() {
-        let mut deps = mock_dependencies();
+    fn does_require_funds_native() {
+        let (mut deps, env) = mock_instantiate(
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![Asset {
+                amount: Uint128::new(15_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            }],
+        );
 
-        let info = mock_info("creator", &[]);
-        let msg = ExecuteMsg::AddBotTip {};
+        let tip_asset = Asset {
+            amount: Uint128::new(5_000),
+            info: AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        };
+
+        let msg = ExecuteMsg::AddBotTip {
+            assets: vec![tip_asset.clone()],
+        };
 
         // should error with InvalidZeroAmount failure
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(res, ContractError::InvalidZeroAmount {});
+        let res = execute(deps.as_mut(), env, mock_creator(), msg).unwrap_err();
+        assert_eq!(
+            res,
+            ContractError::TipDepositMissingAsset { asset: tip_asset }
+        );
     }
 
     #[test]
-    fn does_require_uusd_funds() {
-        let mut deps = mock_dependencies();
+    fn does_require_funds_token() {
+        let tip_asset = Asset {
+            amount: Uint128::new(5_000),
+            info: AssetInfo::Token {
+                contract_addr: Addr::unchecked("cw20_token"),
+            },
+        };
 
-        let info = mock_info("creator", &[coin(20000, "ukrw")]);
-        let msg = ExecuteMsg::AddBotTip {};
+        // instantiate contracts
+        let mut app = mock_app();
 
-        // should error with InvalidZeroAmount
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(res, ContractError::InvalidZeroAmount {});
+        let dca_module_id = store_dca_module_code(&mut app);
+
+        let dca_addr = app_mock_instantiate(
+            &mut app,
+            dca_module_id,
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![],
+        );
+
+        // add tip
+        let msg = ExecuteMsg::AddBotTip {
+            assets: vec![tip_asset.clone()],
+        };
+
+        // should error with NonWhitelistedTipAsset failure
+        let res = app
+            .execute_contract(mock_creator().sender, dca_addr, &msg, &[])
+            .unwrap_err();
+        assert_eq!(
+            res.downcast::<ContractError>().unwrap(),
+            ContractError::NonWhitelistedTipAsset {
+                asset: tip_asset.info
+            }
+        );
+    }
+
+    #[test]
+    fn does_require_whitelisted_funds_native() {
+        let (mut deps, env) = mock_instantiate(
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![Asset {
+                amount: Uint128::new(15_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            }],
+        );
+
+        let tip_denom = "ukrw".to_string();
+        let tip_asset = Asset {
+            amount: Uint128::new(20_000),
+            info: AssetInfo::NativeToken {
+                denom: tip_denom.clone(),
+            },
+        };
+
+        let info = mock_info("creator", &[coin(tip_asset.amount.u128(), tip_denom)]);
+        let msg = ExecuteMsg::AddBotTip {
+            assets: vec![tip_asset.clone()],
+        };
+
+        // should error with NonWhitelistedTipAsset
+        let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
+        assert_eq!(
+            res,
+            ContractError::NonWhitelistedTipAsset {
+                asset: tip_asset.info
+            }
+        );
+    }
+
+    #[test]
+    fn does_require_whitelisted_funds_token() {
+        let tip_asset = Asset {
+            amount: Uint128::new(20_000),
+            info: AssetInfo::Token {
+                contract_addr: Addr::unchecked("cw20_token"),
+            },
+        };
+
+        // instantiate contracts
+        let mut app = mock_app();
+
+        let dca_module_id = store_dca_module_code(&mut app);
+
+        let dca_addr = app_mock_instantiate(
+            &mut app,
+            dca_module_id,
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![],
+        );
+
+        let msg = ExecuteMsg::AddBotTip {
+            assets: vec![tip_asset.clone()],
+        };
+
+        // should error with NonWhitelistedTipAsset
+        let res = app
+            .execute_contract(mock_creator().sender, dca_addr, &msg, &[])
+            .unwrap_err();
+        assert_eq!(
+            res.downcast::<ContractError>().unwrap(),
+            ContractError::NonWhitelistedTipAsset {
+                asset: tip_asset.info
+            }
+        );
     }
 }

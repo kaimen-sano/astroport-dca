@@ -1,7 +1,10 @@
-use astroport::asset::UUSD_DENOM;
-use cosmwasm_std::{attr, coins, BankMsg, DepsMut, MessageInfo, Response, Uint128};
+use astroport::asset::{Asset, AssetInfo};
+use cosmwasm_std::{attr, coins, BankMsg, DepsMut, MessageInfo, Response};
 
-use crate::{error::ContractError, state::USER_CONFIG};
+use crate::{
+    error::ContractError,
+    state::{CONFIG, USER_CONFIG},
+};
 
 /// ## Description
 /// Withdraws a users bot tip from the contract.
@@ -13,113 +16,187 @@ use crate::{error::ContractError, state::USER_CONFIG};
 ///
 /// * `info` - A [`MessageInfo`] from the sender who wants to withdraw their bot tip.
 ///
-/// * `amount`` - A [`Uint128`] representing the amount of uusd to send back to the user.
+/// * `assets`` - A [`Vec<Asset>`] representing the assets the user wants to withdraw from bot tip.
 pub fn withdraw(
     deps: DepsMut,
     info: MessageInfo,
-    amount: Uint128,
+    assets: Vec<Asset>,
 ) -> Result<Response, ContractError> {
-    let mut config = USER_CONFIG
+    let mut user_config = USER_CONFIG
         .may_load(deps.storage, &info.sender)?
         .unwrap_or_default();
 
-    config.tip_balance = config.tip_balance.checked_sub(amount)?;
+    let config = CONFIG.load(deps.storage)?;
 
-    // optimization: if the user is withdrawing all their tip, they are probably never going to
+    let mut send_msgs: Vec<BankMsg> = vec![];
+
+    for asset in assets {
+        if !config.is_whitelisted_fee_asset(&asset.info) {
+            return Err(ContractError::NonWhitelistedTipAsset { asset: asset.info });
+        }
+
+        let user_balance = user_config
+            .tip_balance
+            .iter_mut()
+            .find(|a| a.info == asset.info)
+            .ok_or(ContractError::TipAssetNotDeposited {
+                asset: asset.clone().info,
+            })?;
+
+        user_balance.amount = user_balance.amount.checked_sub(asset.amount)?;
+
+        if let AssetInfo::NativeToken { denom } = asset.info {
+            send_msgs.push(BankMsg::Send {
+                to_address: info.clone().sender.into_string(),
+                amount: coins(asset.amount.u128(), denom),
+            });
+        }
+    }
+
+    // optimization: if the user is withdrawing all their tips, they are probably never going to
     // interact with the contract again. In this case, we can delete their config to save space
     // otherwise, we save their new configuration
-    match config.tip_balance.is_zero() {
+    match user_config.tip_balance.iter().all(|a| a.amount.is_zero()) {
         true => {
             USER_CONFIG.remove(deps.storage, &info.sender);
             Ok(())
         }
-        false => USER_CONFIG.save(deps.storage, &info.sender, &config),
+        false => USER_CONFIG.save(deps.storage, &info.sender, &user_config),
     }?;
 
     Ok(Response::new()
-        .add_attributes(vec![
-            attr("action", "withdraw"),
-            attr("tip_removed", amount),
-        ])
-        .add_message(BankMsg::Send {
-            to_address: info.sender.to_string(),
-            amount: coins(amount.u128(), UUSD_DENOM),
-        }))
+        .add_attributes(vec![attr("action", "withdraw")])
+        .add_messages(send_msgs))
 }
 
 #[cfg(test)]
 mod tests {
+    use astroport::asset::{Asset, AssetInfo};
     use astroport_dca::dca::ExecuteMsg;
     use cosmwasm_std::{
-        attr, coin,
-        testing::{mock_dependencies, mock_env, mock_info},
-        Addr, BankMsg, DepsMut, MessageInfo, OverflowError, OverflowOperation, Response, Uint128,
+        attr, coin, coins, testing::mock_info, Addr, BankMsg, DepsMut, Env, MessageInfo,
+        OverflowError, OverflowOperation, Response, Uint128,
     };
 
     use crate::{
         contract::execute,
         error::ContractError,
         state::{UserConfig, USER_CONFIG},
+        tests::{mock_creator, mock_instantiate},
     };
 
-    fn add_tip(deps: DepsMut, info: MessageInfo) {
-        execute(deps, mock_env(), info, ExecuteMsg::AddBotTip {}).unwrap();
+    fn add_tip(deps: DepsMut, env: Env, info: MessageInfo, asset: Asset) {
+        execute(
+            deps,
+            env,
+            info,
+            ExecuteMsg::AddBotTip {
+                assets: vec![asset],
+            },
+        )
+        .unwrap();
     }
 
     #[test]
     fn will_withdraw_tip() {
-        let mut deps = mock_dependencies();
+        let (mut deps, env) = mock_instantiate(
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![Asset {
+                amount: Uint128::new(15_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            }],
+        );
 
-        let tip_sent = coin(10_000, "uusd");
+        let tip_sent = coin(10_000, "uluna");
 
-        let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::Withdraw {
-            tip: tip_sent.amount,
+            assets: vec![Asset {
+                amount: Uint128::new(5_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            }],
         };
 
-        // add bot tip
-        add_tip(deps.as_mut(), mock_info("creator", &[tip_sent.clone()]));
+        add_tip(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[tip_sent]),
+            Asset {
+                amount: Uint128::new(10_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            },
+        );
 
         // attempt bot withdraw and check that we got the expected response
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let res = execute(deps.as_mut(), env, mock_creator(), msg).unwrap();
         assert_eq!(
             res,
             Response::new()
-                .add_attributes(vec![
-                    attr("action", "withdraw"),
-                    attr("tip_removed", tip_sent.amount)
-                ])
+                .add_attributes(vec![attr("action", "withdraw"),])
                 .add_message(BankMsg::Send {
                     to_address: "creator".to_string(),
-                    amount: vec![tip_sent]
+                    amount: coins(5_000, "uluna")
                 })
         )
     }
 
     #[test]
     fn does_update_config() {
-        let mut deps = mock_dependencies();
+        let (mut deps, env) = mock_instantiate(
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![Asset {
+                amount: Uint128::new(2_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            }],
+        );
 
-        let tip_sent = coin(10_000, "uusd");
-        let tip_withdraw = coin(5_000, "uusd");
+        let tip_sent = coin(10_000, "uluna");
 
-        let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::Withdraw {
-            tip: tip_withdraw.amount,
+            assets: vec![Asset {
+                amount: Uint128::new(5_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            }],
         };
 
         // add bot tip
-        add_tip(deps.as_mut(), mock_info("creator", &[tip_sent]));
+        add_tip(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[tip_sent.clone()]),
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: tip_sent.denom,
+                },
+                amount: tip_sent.amount,
+            },
+        );
 
         // attempt bot withdraw and check that config was updated
-        execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+        execute(deps.as_mut(), env, mock_creator(), msg).unwrap();
         let config = USER_CONFIG
             .load(&deps.storage, &Addr::unchecked("creator"))
             .unwrap();
         assert_eq!(
             config,
             UserConfig {
-                tip_balance: Uint128::from(5_000u64),
+                tip_balance: vec![Asset {
+                    amount: tip_sent.amount - Uint128::new(5_000),
+                    info: AssetInfo::NativeToken {
+                        denom: "uluna".to_string()
+                    }
+                }],
                 ..UserConfig::default()
             }
         )
@@ -127,21 +204,44 @@ mod tests {
 
     #[test]
     fn wont_excess_withdraw() {
-        let mut deps = mock_dependencies();
+        let (mut deps, env) = mock_instantiate(
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![Asset {
+                amount: Uint128::new(15_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            }],
+        );
 
-        let tip_sent = coin(10_000, "uusd");
-        let tip_withdraw = coin(15_000, "uusd");
+        let tip_sent = coin(10_000, "uluna");
+        let tip_withdraw = coin(15_000, "uluna");
 
-        let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::Withdraw {
-            tip: tip_withdraw.amount,
+            assets: vec![Asset {
+                amount: tip_withdraw.amount,
+                info: AssetInfo::NativeToken {
+                    denom: tip_withdraw.denom,
+                },
+            }],
         };
 
         // add bot tip
-        add_tip(deps.as_mut(), mock_info("creator", &[tip_sent.clone()]));
+        add_tip(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[tip_sent.clone()]),
+            Asset {
+                amount: tip_sent.amount,
+                info: AssetInfo::NativeToken {
+                    denom: tip_sent.denom,
+                },
+            },
+        );
 
         // attempt bot withdraw and check that it failed
-        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+        let err = execute(deps.as_mut(), env, mock_creator(), msg).unwrap_err();
         assert_eq!(
             err,
             ContractError::OverflowError(OverflowError::new(

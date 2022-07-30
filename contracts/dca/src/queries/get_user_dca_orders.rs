@@ -24,7 +24,7 @@ pub fn get_user_dca_orders(deps: Deps, env: Env, user: String) -> StdResult<Vec<
         .into_iter()
         .map(|order| {
             Ok(DcaQueryInfo {
-                info: order.clone(),
+                order: order.clone(),
                 token_allowance: match &order.initial_asset.info {
                     AssetInfo::NativeToken { .. } => order.initial_asset.amount,
                     AssetInfo::Token { contract_addr } => {
