@@ -122,7 +122,8 @@ pub struct MigrateMsg {}
 ///
 /// This is useful for bots and front-end to distinguish between a users token allowance (which may
 /// have changed) for the DCA contract, and the created DCA order size.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DcaQueryInfo {
-    token_allowance: Uint128,
-    info: DcaInfo,
+    pub token_allowance: Uint128,
+    pub info: DcaInfo,
 }

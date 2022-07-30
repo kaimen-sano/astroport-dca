@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn does_update_user_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::UpdateUserConfig {
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn does_not_change_tip_balance() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::UpdateUserConfig {
@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn does_reset_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[]);
         let update_msg = ExecuteMsg::UpdateUserConfig {

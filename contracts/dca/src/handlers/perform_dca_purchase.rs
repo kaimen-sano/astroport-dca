@@ -179,7 +179,7 @@ pub fn perform_dca_purchase(
                     msg: to_binary(&RouterExecuteMsg::ExecuteSwapOperations {
                         operations: hops,
                         minimum_receive: None,
-                        to: Some(user_address.clone()),
+                        to: Some(user_address.clone().into_string()),
                         max_spread: Some(max_spread),
                     })?,
                 }

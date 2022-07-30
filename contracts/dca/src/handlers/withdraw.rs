@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn will_withdraw_tip() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let tip_sent = coin(10_000, "uusd");
 
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn does_update_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let tip_sent = coin(10_000, "uusd");
         let tip_withdraw = coin(5_000, "uusd");
@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn wont_excess_withdraw() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let tip_sent = coin(10_000, "uusd");
         let tip_withdraw = coin(15_000, "uusd");

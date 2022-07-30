@@ -59,7 +59,7 @@ mod tests {
 
     #[test]
     fn does_add_bot_tip() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let tip_sent = coin(10000, "uusd");
 
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn does_require_funds() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[]);
         let msg = ExecuteMsg::AddBotTip {};
@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn does_require_uusd_funds() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let info = mock_info("creator", &[coin(20000, "ukrw")]);
         let msg = ExecuteMsg::AddBotTip {};
