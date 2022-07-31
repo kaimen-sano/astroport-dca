@@ -110,8 +110,8 @@ mod tests {
         error::ContractError,
         state::{UserConfig, USER_CONFIG},
         tests::{
-            app_mock_instantiate, mock_app, mock_creator, mock_instantiate, store_cw20_token_code,
-            store_dca_module_code,
+            app_mock_instantiate, mock_app, mock_creator, mock_instantiate, read_map,
+            store_cw20_token_code, store_dca_module_code,
         },
     };
 
@@ -226,11 +226,14 @@ mod tests {
 
         // add tip
         let msg = ExecuteMsg::AddBotTip {
-            assets: vec![tip_asset],
+            assets: vec![tip_asset.clone()],
         };
 
-        app.execute_contract(mock_creator().sender, dca_addr, &msg, &[])
+        app.execute_contract(mock_creator().sender, dca_addr.clone(), &msg, &[])
             .unwrap();
+
+        let config = read_map(&app, dca_addr, &mock_creator().sender, USER_CONFIG);
+        assert_eq!(config.tip_balance, vec![tip_asset])
     }
 
     #[test]

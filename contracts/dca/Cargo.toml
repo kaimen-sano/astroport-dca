@@ -37,3 +37,4 @@ thiserror = { version = "1.0.31" }
 cosmwasm-schema = "1.0.0"
 cw-multi-test = "0.14.0"
 cw20-base = "0.14.0"
+cosmwasm-storage = "1.0.0"

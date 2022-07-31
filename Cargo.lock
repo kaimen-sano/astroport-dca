@@ -52,6 +52,7 @@ dependencies = [
  "astroport-dca",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 0.13.4",
  "cw2 0.13.4",
