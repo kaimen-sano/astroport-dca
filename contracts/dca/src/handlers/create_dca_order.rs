@@ -174,7 +174,7 @@ mod tests {
                 target_asset: target_asset.clone(),
                 interval: 1_000,
                 dca_amount: Uint128::new(25_000),
-                first_purchase: None,
+                first_purchase: Some(18_000),
             },
         )
         .unwrap();
@@ -203,7 +203,7 @@ mod tests {
                 initial_asset,
                 target_asset,
                 interval: 1_000,
-                last_purchase: 0
+                last_purchase: 18_000
             }]
         );
     }
