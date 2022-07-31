@@ -24,9 +24,6 @@ pub enum ContractError {
     #[error("Operation exceeds max spread limit")]
     MaxSpreadAssertion {},
 
-    #[error("Token has already been used to DCA")]
-    AlreadyDeposited {},
-
     #[error("DCA amount is not equal to allowance set by token")]
     InvalidTokenDeposit {},
 
