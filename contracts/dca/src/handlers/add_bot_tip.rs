@@ -86,7 +86,7 @@ pub fn add_bot_tip(
         // increment balance
         match balance {
             Some(balance) => {
-                (*balance).amount.checked_add(asset.amount)?;
+                balance.amount = balance.amount.checked_add(asset.amount)?;
             }
             None => user_config.tip_balance.push(asset),
         }
@@ -458,6 +458,48 @@ mod tests {
                 },
                 sent: tip_asset
             }
+        );
+    }
+
+    #[test]
+    fn does_increment_tip_balance() {
+        let (mut deps, env) = mock_instantiate(
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![Asset {
+                amount: Uint128::new(15_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            }],
+        );
+
+        let tip_asset = Asset {
+            amount: Uint128::new(25_000),
+            info: AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        };
+
+        let info = mock_info(
+            "creator",
+            &[coin(tip_asset.amount.u128(), "uluna".to_string())],
+        );
+        let msg = ExecuteMsg::AddBotTip {
+            assets: vec![tip_asset.clone()],
+        };
+
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        execute(deps.as_mut(), env, info.clone(), msg).unwrap();
+
+        // should have incremented balance
+        let user_config = USER_CONFIG.load(&deps.storage, &info.sender).unwrap();
+        assert_eq!(
+            user_config.tip_balance,
+            vec![Asset {
+                amount: tip_asset.amount * Uint128::new(2),
+                info: tip_asset.info
+            }]
         );
     }
 }
