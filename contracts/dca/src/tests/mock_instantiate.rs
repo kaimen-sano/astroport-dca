@@ -1,4 +1,4 @@
-use astroport::asset::Asset;
+use astroport::asset::{Asset, AssetInfo};
 use astroport_dca::dca::InstantiateMsg;
 use cosmwasm_std::{
     testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage},
@@ -15,6 +15,7 @@ pub fn mock_instantiate(
     factory_addr: Addr,
     router_addr: Addr,
     whitelisted_fee_assets: Vec<Asset>,
+    whitelisted_tokens: Vec<AssetInfo>,
 ) -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let mut deps = mock_dependencies();
     let env = mock_env();
@@ -31,7 +32,7 @@ pub fn mock_instantiate(
             max_hops: 4,
             max_spread: "0.05".to_string(),
             whitelisted_fee_assets,
-            whitelisted_tokens: vec![],
+            whitelisted_tokens,
         },
     )
     .unwrap();

@@ -108,6 +108,7 @@ mod tests {
                     denom: "uluna".to_string(),
                 },
             }],
+            vec![],
         );
 
         let tip_sent = coin(10_000, "uluna");
@@ -157,6 +158,7 @@ mod tests {
                     denom: "uluna".to_string(),
                 },
             }],
+            vec![],
         );
 
         let tip_sent = coin(10_000, "uluna");
@@ -213,6 +215,7 @@ mod tests {
                     denom: "uluna".to_string(),
                 },
             }],
+            vec![],
         );
 
         let tip_sent = coin(10_000, "uluna");

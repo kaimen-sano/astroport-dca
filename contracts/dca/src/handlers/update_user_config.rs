@@ -119,6 +119,7 @@ mod tests {
                     denom: "uluna".to_string(),
                 },
             }],
+            vec![],
         );
 
         let msg = ExecuteMsg::UpdateUserConfig {

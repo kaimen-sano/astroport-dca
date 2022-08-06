@@ -30,7 +30,7 @@ pub enum ContractError {
     #[error("Invalid hop route through {token} due to token whitelist")]
     InvalidHopRoute { token: String },
 
-    #[error("The user does not have the specified initial_asset to DCA")]
+    #[error("The user does not have an order with the specified id")]
     NonexistentDca {},
 
     #[error("Swap exceeds maximum of {hops} hops")]

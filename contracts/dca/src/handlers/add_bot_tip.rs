@@ -126,6 +126,7 @@ mod tests {
                     denom: "uluna".to_string(),
                 },
             }],
+            vec![],
         );
 
         let tip_sent = coin(10000, "uluna");
@@ -247,6 +248,7 @@ mod tests {
                     denom: "uluna".to_string(),
                 },
             }],
+            vec![],
         );
 
         let tip_asset = Asset {
@@ -279,6 +281,7 @@ mod tests {
                     denom: "uluna".to_string(),
                 },
             }],
+            vec![],
         );
 
         let tip_denom = "ukrw".to_string();
@@ -353,6 +356,7 @@ mod tests {
                     denom: "uluna".to_string(),
                 },
             }],
+            vec![],
         );
 
         let tip_asset = Asset {
@@ -475,6 +479,7 @@ mod tests {
                     denom: "uluna".to_string(),
                 },
             }],
+            vec![],
         );
 
         let tip_asset = Asset {
