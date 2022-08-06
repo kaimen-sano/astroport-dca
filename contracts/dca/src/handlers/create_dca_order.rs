@@ -89,8 +89,19 @@ pub fn create_dca_order(
     match &initial_asset.info {
         AssetInfo::NativeToken { .. } => initial_asset.assert_sent_native_token_balance(&info)?,
         AssetInfo::Token { contract_addr } => {
+            // allowance should be greater than the sum of all orders with this initial asset
+            let total_allowance: Uint128 = orders
+                .iter()
+                .map(|o| match &o.initial_asset.info {
+                    AssetInfo::Token {
+                        contract_addr: o_contract_addr,
+                    } if contract_addr == o_contract_addr => o.initial_asset.amount,
+                    _ => Uint128::zero(),
+                })
+                .sum();
+
             let allowance = get_token_allowance(&deps.as_ref(), &env, &info.sender, contract_addr)?;
-            if allowance != initial_asset.amount {
+            if total_allowance + initial_asset.amount > allowance {
                 return Err(ContractError::InvalidTokenDeposit {});
             }
         }
@@ -139,7 +150,7 @@ mod tests {
         testing::{mock_dependencies, mock_env, mock_info},
         Addr, DivideByZeroError, Response, StdError, Uint128,
     };
-    use cw_multi_test::Executor;
+    use cw_multi_test::{App, AppResponse, Executor};
 
     use crate::{
         contract::execute,
@@ -497,6 +508,98 @@ mod tests {
             res.downcast::<ContractError>().unwrap(),
             ContractError::InvalidTokenDeposit {}
         );
+    }
+
+    #[test]
+    fn can_create_multiple_orders() {
+        let mut app = mock_app();
+
+        let cw20_token_id = store_cw20_token_code(&mut app);
+        let dca_module_id = store_dca_module_code(&mut app);
+
+        let cw20_addr = app
+            .instantiate_contract(
+                cw20_token_id,
+                mock_creator().sender,
+                &cw20_base::msg::InstantiateMsg {
+                    decimals: 6,
+                    initial_balances: vec![],
+                    marketing: None,
+                    mint: None,
+                    name: "cw20 token".to_string(),
+                    symbol: "cwT".to_string(),
+                },
+                &[],
+                "mock cw20 token",
+                None,
+            )
+            .unwrap();
+
+        let dca_addr = app_mock_instantiate(
+            &mut app,
+            dca_module_id,
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![Asset {
+                amount: Uint128::new(15_000),
+                info: AssetInfo::Token {
+                    contract_addr: cw20_addr.clone(),
+                },
+            }],
+        );
+
+        // increment allowance
+        let increment_allowance = |app: &mut App| {
+            app.execute_contract(
+                mock_creator().sender,
+                cw20_addr.clone(),
+                &cw20_base::msg::ExecuteMsg::IncreaseAllowance {
+                    spender: dca_addr.clone().into_string(),
+                    amount: Uint128::new(25_000),
+                    expires: None,
+                },
+                &[],
+            )
+            .unwrap();
+        };
+        increment_allowance(&mut app);
+
+        let create_order = |app: &mut App| -> Result<AppResponse, _> {
+            app.execute_contract(
+                mock_creator().sender,
+                dca_addr.clone(),
+                &ExecuteMsg::CreateDcaOrder {
+                    initial_asset: Asset {
+                        amount: Uint128::new(25_000),
+                        info: AssetInfo::Token {
+                            contract_addr: cw20_addr.clone(),
+                        },
+                    },
+                    target_asset: AssetInfo::NativeToken {
+                        denom: "uluna".to_string(),
+                    },
+                    interval: 500,
+                    dca_amount: Uint128::new(5_000),
+                    first_purchase: None,
+                },
+                &[],
+            )
+        };
+
+        create_order(&mut app).unwrap();
+
+        // creating again should error, as we have not incremented allowance to 50k
+        let res = create_order(&mut app).unwrap_err();
+        assert_eq!(
+            res.downcast::<ContractError>().unwrap(),
+            ContractError::InvalidTokenDeposit {}
+        );
+
+        // increment allowance
+        increment_allowance(&mut app);
+
+        // now we should be able to create
+        create_order(&mut app).unwrap();
     }
 
     #[test]
