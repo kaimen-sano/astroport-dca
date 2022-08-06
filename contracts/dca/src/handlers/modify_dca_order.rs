@@ -61,10 +61,12 @@ pub fn modify_dca_order(
         .unwrap_or_default();
 
     // check that order with given id exists
-    let order = orders
-        .iter_mut()
-        .find(|order| order.id == id)
+    let order_position = orders
+        .iter()
+        .position(|order| order.id == id)
         .ok_or(ContractError::NonexistentDca {})?;
+
+    let order = &orders[order_position];
 
     let should_refund = order.initial_asset.amount > new_initial_asset.amount;
     let asset_difference = Asset {
@@ -82,6 +84,11 @@ pub fn modify_dca_order(
 
     let mut messages = Vec::new();
 
+    // check that user did not set new asset to the old asset target
+    if new_initial_asset.info == new_target_asset {
+        return Err(ContractError::DuplicateAsset {});
+    }
+
     if order.initial_asset.info == new_initial_asset.info {
         if !should_refund {
             // if the user needs to have deposited more, check that we have the correct funds/allowance sent
@@ -94,9 +101,20 @@ pub fn modify_dca_order(
                     asset_difference.assert_sent_native_token_balance(&info)?
                 }
                 AssetInfo::Token { contract_addr } => {
+                    // allowance should be greater than the sum of all orders with this initial asset
+                    let total_allowance: Uint128 = orders
+                        .iter()
+                        .map(|o| match &o.initial_asset.info {
+                            AssetInfo::Token {
+                                contract_addr: o_contract_addr,
+                            } if contract_addr == o_contract_addr => o.initial_asset.amount,
+                            _ => Uint128::zero(),
+                        })
+                        .sum();
+
                     let allowance =
                         get_token_allowance(&deps.as_ref(), &env, &info.sender, contract_addr)?;
-                    if allowance != new_initial_asset.amount {
+                    if total_allowance + asset_difference.amount > allowance {
                         return Err(ContractError::InvalidTokenDeposit {});
                     }
                 }
@@ -125,9 +143,21 @@ pub fn modify_dca_order(
                 new_initial_asset.assert_sent_native_token_balance(&info)?
             }
             AssetInfo::Token { contract_addr } => {
+                // allowance should be greater than the sum of all orders with this initial asset
+                let total_allowance: Uint128 = orders
+                    .clone()
+                    .iter()
+                    .map(|o| match &o.initial_asset.info {
+                        AssetInfo::Token {
+                            contract_addr: o_contract_addr,
+                        } if contract_addr == o_contract_addr => o.initial_asset.amount,
+                        _ => Uint128::zero(),
+                    })
+                    .sum();
+
                 let allowance =
                     get_token_allowance(&deps.as_ref(), &env, &info.sender, contract_addr)?;
-                if allowance != new_initial_asset.amount {
+                if total_allowance + new_initial_asset.amount > allowance {
                     return Err(ContractError::InvalidTokenDeposit {});
                 }
             }
@@ -135,6 +165,8 @@ pub fn modify_dca_order(
     }
 
     // update order
+    let mut order = &mut orders[order_position];
+
     order.initial_asset = new_initial_asset.clone();
     order.target_asset = new_target_asset.clone();
     order.interval = new_interval;
@@ -179,8 +211,8 @@ mod test {
         error::ContractError,
         state::USER_DCA,
         tests::{
-            app_mock_instantiate, mock_app, mock_creator, store_cw20_token_code,
-            store_dca_module_code,
+            app_mock_instantiate, mock_app, mock_app_with_balance, mock_creator,
+            store_cw20_token_code, store_dca_module_code,
         },
     };
 
@@ -435,7 +467,7 @@ mod test {
     fn does_validate_extra_sent_token() {
         // validates that when a user increases the initial_asset.amount, that they have attached
         // the required funds to their tx
-        let mut app = mock_app();
+        let mut app = mock_app_with_balance(vec![(mock_creator().sender, coins(100_000, "uluna"))]);
 
         let cw20_token_id = store_cw20_token_code(&mut app);
         let dca_module_id = store_dca_module_code(&mut app);
@@ -504,12 +536,34 @@ mod test {
             dca_addr.clone(),
             &ExecuteMsg::CreateDcaOrder {
                 initial_asset: initial_asset.clone(),
-                target_asset,
+                target_asset: target_asset.clone(),
                 interval: 1000,
                 dca_amount: Uint128::new(25_000),
                 first_purchase: None,
             },
             &[],
+        )
+        .unwrap();
+
+        // create another random order
+        app.execute_contract(
+            mock_creator().sender,
+            dca_addr.clone(),
+            &ExecuteMsg::CreateDcaOrder {
+                initial_asset: Asset {
+                    amount: Uint128::new(20_000),
+                    info: AssetInfo::NativeToken {
+                        denom: "uluna".to_string(),
+                    },
+                },
+                target_asset: AssetInfo::NativeToken {
+                    denom: "ukrw".to_string(),
+                },
+                interval: 1_000,
+                dca_amount: Uint128::new(1_000),
+                first_purchase: None,
+            },
+            &coins(20_000, "uluna"),
         )
         .unwrap();
 
@@ -521,7 +575,7 @@ mod test {
                 &ExecuteMsg::ModifyDcaOrder {
                     id: 1,
                     new_initial_asset: new_initial_asset.clone(),
-                    new_target_asset: initial_asset.clone().info,
+                    new_target_asset: target_asset.clone(),
                     new_interval: 5_000,
                     new_dca_amount: Uint128::new(1_000),
                     new_first_purchase: None,
@@ -553,7 +607,7 @@ mod test {
             &ExecuteMsg::ModifyDcaOrder {
                 id: 1,
                 new_initial_asset,
-                new_target_asset: initial_asset.info,
+                new_target_asset: target_asset,
                 new_interval: 5_000,
                 new_dca_amount: Uint128::new(1_000),
                 new_first_purchase: None,
@@ -854,5 +908,55 @@ mod test {
         )
         .unwrap_err();
         assert_eq!(res, ContractError::NonexistentDca {});
+    }
+
+    #[test]
+    fn cannot_change_to_duplicate_asset() {
+        let mut deps = mock_dependencies();
+
+        let initial_asset = Asset {
+            amount: Uint128::new(15_000),
+            info: AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        };
+        let target_asset = AssetInfo::NativeToken {
+            denom: "ukrw".to_string(),
+        };
+        let new_initial_asset = Asset {
+            amount: Uint128::new(15_000),
+            info: target_asset.clone(),
+        };
+
+        // create order
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("creator", &coins(initial_asset.amount.u128(), "uluna")),
+            ExecuteMsg::CreateDcaOrder {
+                initial_asset,
+                target_asset: target_asset.clone(),
+                interval: 5_000,
+                dca_amount: Uint128::new(1_000),
+                first_purchase: None,
+            },
+        )
+        .unwrap();
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_creator(),
+            ExecuteMsg::ModifyDcaOrder {
+                id: 1,
+                new_initial_asset,
+                new_target_asset: target_asset,
+                new_interval: 1_000,
+                new_dca_amount: Uint128::new(500),
+                new_first_purchase: Some(18_000),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(res, ContractError::DuplicateAsset {});
     }
 }
