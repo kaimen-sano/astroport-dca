@@ -1055,7 +1055,7 @@ mod test {
     }
 
     #[test]
-    fn does_check_requested_fee_whitelisted() {
+    fn does_check_tip_is_divisible() {
         let (mut app, dca_addr, ..) = instantiate(None);
 
         create_normal_order(
@@ -1113,6 +1113,72 @@ mod test {
         assert_eq!(
             res.downcast::<ContractError>().unwrap(),
             ContractError::IndivisibleDeposit {}
+        );
+    }
+
+    #[test]
+    fn does_check_requested_fee_whitelisted() {
+        let (mut app, dca_addr, ..) = instantiate(None);
+
+        create_normal_order(
+            &mut app,
+            dca_addr.clone(),
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "ukrw".to_string(),
+            },
+        );
+
+        add_tip_balance(&mut app, dca_addr.clone());
+
+        let bot_user = Addr::unchecked("bot_user");
+
+        // perform purchase
+        let res = app
+            .execute_contract(
+                bot_user,
+                dca_addr,
+                &ExecuteMsg::PerformDcaPurchase {
+                    user: mock_creator().sender.into_string(),
+                    id: 1,
+                    hops: vec![
+                        SwapOperation::AstroSwap {
+                            offer_asset_info: AssetInfo::NativeToken {
+                                denom: "uluna".to_string(),
+                            },
+                            ask_asset_info: AssetInfo::NativeToken {
+                                denom: "ujpy".to_string(),
+                            },
+                        },
+                        SwapOperation::AstroSwap {
+                            offer_asset_info: AssetInfo::NativeToken {
+                                denom: "ujpy".to_string(),
+                            },
+                            ask_asset_info: AssetInfo::NativeToken {
+                                denom: "ukrw".to_string(),
+                            },
+                        },
+                    ],
+                    fee_redeem: vec![Asset {
+                        amount: Uint128::new(30_000),
+                        info: AssetInfo::NativeToken {
+                            denom: "ujpy".to_string(),
+                        },
+                    }],
+                },
+                &[],
+            )
+            .unwrap_err();
+
+        assert_eq!(
+            res.downcast::<ContractError>().unwrap(),
+            ContractError::NonWhitelistedTipAsset {
+                asset: AssetInfo::NativeToken {
+                    denom: "ujpy".to_string()
+                }
+            }
         );
     }
 
