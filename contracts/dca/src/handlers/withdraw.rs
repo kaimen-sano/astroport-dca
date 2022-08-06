@@ -53,16 +53,7 @@ pub fn withdraw(
         }
     }
 
-    // optimization: if the user is withdrawing all their tips, they are probably never going to
-    // interact with the contract again. In this case, we can delete their config to save space
-    // otherwise, we save their new configuration
-    match user_config.tip_balance.iter().all(|a| a.amount.is_zero()) {
-        true => {
-            USER_CONFIG.remove(deps.storage, &info.sender);
-            Ok(())
-        }
-        false => USER_CONFIG.save(deps.storage, &info.sender, &user_config),
-    }?;
+    USER_CONFIG.save(deps.storage, &info.sender, &user_config)?;
 
     Ok(Response::new()
         .add_attributes(vec![attr("action", "withdraw")])
@@ -253,5 +244,43 @@ mod tests {
                 tip_withdraw.amount
             ))
         );
+    }
+
+    #[test]
+    fn cant_withdraw_non_whitelisted_asset() {
+        let (mut deps, env) = mock_instantiate(
+            Addr::unchecked("factory"),
+            Addr::unchecked("router"),
+            vec![Asset {
+                amount: Uint128::new(15_000),
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+            }],
+            vec![],
+        );
+
+        let withdraw_asset = Asset {
+            amount: Uint128::new(25_000),
+            info: AssetInfo::NativeToken {
+                denom: "ukrw".to_string(),
+            },
+        };
+
+        let res = execute(
+            deps.as_mut(),
+            env,
+            mock_creator(),
+            ExecuteMsg::Withdraw {
+                assets: vec![withdraw_asset.clone()],
+            },
+        )
+        .unwrap_err();
+        assert_eq!(
+            res,
+            ContractError::NonWhitelistedTipAsset {
+                asset: withdraw_asset.info
+            }
+        )
     }
 }
