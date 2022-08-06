@@ -77,6 +77,22 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
     Ok(Response::default())
 }
 
+#[cfg(test)]
+mod test {
+    use astroport_dca::dca::MigrateMsg;
+    use cosmwasm_std::{testing::{mock_dependencies, mock_env}, Response};
+
+    use super::migrate;
+
+    #[test]
+    fn can_migrate() {
+        let mut deps = mock_dependencies();
+
+        let res = migrate(deps.as_mut(), mock_env(), MigrateMsg {}).unwrap();
+        assert_eq!(res, Response::new());
+    }
+}
+
 /// ## Description
 /// Exposes all the execute functions available in the contract.
 /// ## Arguments
