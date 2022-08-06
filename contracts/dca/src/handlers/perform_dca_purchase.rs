@@ -296,8 +296,8 @@ mod test {
         state::{Config, UserConfig, CONFIG, USER_CONFIG, USER_DCA},
         tests::{
             mock_app_with_balance, mock_creator, mock_instantiate, read_map,
-            store_astroport_pair_code, store_astroport_token_code, store_cw20_token_code,
-            store_dca_module_code, store_factory_code, store_router_code,
+            store_astroport_pair_code, store_cw20_token_code, store_dca_module_code,
+            store_factory_code, store_router_code,
         },
     };
 
@@ -319,7 +319,6 @@ mod test {
         let cw20_token_id = store_cw20_token_code(&mut app);
         let dca_module_id = store_dca_module_code(&mut app);
         let astroport_pair_id = store_astroport_pair_code(&mut app);
-        let astroport_token_id = store_astroport_token_code(&mut app);
         let factory_id = store_factory_code(&mut app);
         let router_id = store_router_code(&mut app);
 

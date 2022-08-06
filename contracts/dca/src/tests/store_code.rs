@@ -59,14 +59,3 @@ pub fn store_astroport_pair_code(app: &mut App) -> u64 {
 
     app.store_code(contract)
 }
-
-/// Stores the Astroport token to the app
-pub fn store_astroport_token_code(app: &mut App) -> u64 {
-    let contract = Box::new(ContractWrapper::new(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    app.store_code(contract)
-}

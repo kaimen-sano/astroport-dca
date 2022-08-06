@@ -37,7 +37,6 @@ thiserror = "1.0.31"
 astroport-factory = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
 astroport-pair = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
 astroport-router = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
-astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
 cosmwasm-schema = "1.0.0"
 cosmwasm-storage = "1.0.0"
 cw-multi-test = "0.14.0"
